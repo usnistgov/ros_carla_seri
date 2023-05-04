@@ -1,0 +1,9 @@
+ros2 launch carla_ros_bridge carla_ros_bridge.launch.py
+ros2 launch carla_spawn_objects carla_spawn_objects.launch.py
+ros2 run rviz2 rviz2
+ros2 launch carla_manual_control carla_manual_control.launch.py
+
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+
+
+
