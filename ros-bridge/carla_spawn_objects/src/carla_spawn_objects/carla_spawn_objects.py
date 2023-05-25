@@ -18,6 +18,8 @@ finally ask for a random one to the spawn service.
 import json
 import math
 import os
+import yaml
+import sys
 
 from transforms3d.euler import euler2quat
 
@@ -56,6 +58,8 @@ class CarlaSpawnObjects(CompatibleNode):
         self.spawn_object_service = self.new_client(SpawnObject, "/carla/spawn_object")
         self.destroy_object_service = self.new_client(DestroyObject, "/carla/destroy_object")
 
+        self.config_file = None
+
     def spawn_object(self, spawn_object_request):
         response_id = -1
         response = self.call_service(self.spawn_object_service, spawn_object_request, spin_until_response_received=True)
@@ -69,6 +73,21 @@ class CarlaSpawnObjects(CompatibleNode):
             raise RuntimeError(response.error_string)
         return response_id
 
+    def read_yaml(self, path):
+        '''
+        Method to read a yaml file
+
+        Args:
+            path (str): absolute path to the yaml file
+
+        '''
+        with open(path, "r") as stream:
+            try:
+                return yaml.safe_load(stream)
+            except yaml.YAMLError:
+                self.get_logger().error("Unable to read configuration file")
+                return {}
+
     def spawn_objects(self):
         """
         Spawns the objects
@@ -79,27 +98,50 @@ class CarlaSpawnObjects(CompatibleNode):
         """
         # Read sensors from file
         if not self.objects_definition_file or not os.path.exists(self.objects_definition_file):
-            raise RuntimeError(
-                "Could not read object definitions from {}".format(self.objects_definition_file))
-        with open(self.objects_definition_file) as handle:
-            json_actors = json.loads(handle.read())
+            raise RuntimeError(f"Could not read object definitions from {self.objects_definition_file}")
+
+        self.config_file = self.read_yaml(self.objects_definition_file)
+
+        try:
+            spawn_objects = self.config_file["objects"]
+        except KeyError:
+            self.get_logger().info(
+                "YAML configuration file does not contain an 'objects' section")
+            sys.exit(1)
+
+        # with open(self.objects_definition_file) as handle:
+        #     json_actors = json.loads(handle.read())
 
         global_sensors = []
         vehicles = []
         found_sensor_actor_list = False
 
-        for actor in json_actors["objects"]:
-            actor_type = actor["type"].split('.')[0]
-            if actor["type"] == "sensor.pseudo.actor_list" and self.spawn_sensors_only:
-                global_sensors.append(actor)
-                found_sensor_actor_list = True
-            elif actor_type == "sensor":
-                global_sensors.append(actor)
-            elif actor_type == "vehicle" or actor_type == "walker":
-                vehicles.append(actor)
-            else:
-                self.logwarn(
-                    "Object with type {} is not a vehicle, a walker or a sensor, ignoring".format(actor["type"]))
+        for actor in spawn_objects:
+            for key, value in actor.items():
+                if key == 'type':
+                    if value == "sensor.pseudo.actor_list" and self.spawn_sensors_only:
+                        global_sensors.append(actor)
+                        found_sensor_actor_list = True
+                    elif value.split('.')[0] == "sensor":
+                        global_sensors.append(actor)
+                    elif value.split('.')[0] == "vehicle" or value.split('.')[0] == "walker":
+                        vehicles.append(actor)
+                    else:
+                        self.logwarn(
+                            f"Object with type {str(value)} is not a vehicle, a walker or a sensor, ignoring")
+
+        # for actor in json_actors["objects"]:
+        #     actor_type = actor["type"].split('.')[0]
+        #     if actor["type"] == "sensor.pseudo.actor_list" and self.spawn_sensors_only:
+        #         global_sensors.append(actor)
+        #         found_sensor_actor_list = True
+        #     elif actor_type == "sensor":
+        #         global_sensors.append(actor)
+        #     elif actor_type == "vehicle" or actor_type == "walker":
+        #         vehicles.append(actor)
+        #     else:
+        #         self.logwarn(
+        #             "Object with type {} is not a vehicle, a walker or a sensor, ignoring".format(actor["type"]))
         if self.spawn_sensors_only is True and found_sensor_actor_list is False:
             raise RuntimeError("Parameter 'spawn_sensors_only' enabled, " +
                                "but 'sensor.pseudo.actor_list' is not instantiated, add it to your config file.")
@@ -109,6 +151,7 @@ class CarlaSpawnObjects(CompatibleNode):
         if self.spawn_sensors_only is True:
             # get vehicle id from topic /carla/actor_list for all vehicles listed in config file
             actor_info_list = self.wait_for_message("/carla/actor_list", CarlaActorList)
+
             for vehicle in vehicles:
                 for actor_info in actor_info_list.actors:
                     if actor_info.type == vehicle["type"] and actor_info.rolename == vehicle["id"]:
@@ -118,14 +161,19 @@ class CarlaSpawnObjects(CompatibleNode):
         self.loginfo("All objects spawned.")
 
     def setup_vehicles(self, vehicles):
+        '''
+        Spawn vehicles and their sensors
+
+        Args:
+            vehicles (dict): Dictionary containing the vehicles to spawn
+        '''
         for vehicle in vehicles:
             if self.spawn_sensors_only is True:
                 # spawn sensors of already spawned vehicles
                 try:
                     carla_id = vehicle["carla_id"]
                 except KeyError as e:
-                    self.logerr(
-                        "Could not spawn sensors of vehicle {}, its carla ID is not known.".format(vehicle["id"]))
+                    self.logerr(f"Could not spawn sensors of vehicle {vehicle['id']}, its carla ID is not known.")
                     break
                 # spawn the vehicle's sensors
                 self.setup_sensors(vehicle["sensors"], carla_id)
@@ -185,8 +233,8 @@ class CarlaSpawnObjects(CompatibleNode):
                         try:
                             self.setup_sensors(vehicle["sensors"], response_id)
                         except KeyError:
-                            self.logwarn(
-                                "Object (type='{}', id='{}') has no 'sensors' field in his config file, none will be spawned.".format(spawn_object_request.type, spawn_object_request.id))
+                            self.logwarn("Object (type='{}', id='{}') has no 'sensors' field in his config file, none will be spawned.".format(
+                                spawn_object_request.type, spawn_object_request.id))
 
     def setup_sensors(self, sensors, attached_vehicle_id=None):
         """
@@ -273,8 +321,9 @@ class CarlaSpawnObjects(CompatibleNode):
                 continue
 
             except NameError:
-                self.logerr("Sensor rolename '{}' is only allowed to be used once. The second one will be ignored.".format(
-                    sensor_id))
+                self.logerr(
+                    "Sensor rolename '{}' is only allowed to be used once. The second one will be ignored.".format(
+                        sensor_id))
                 continue
 
     def create_spawn_point(self, x, y, z, roll, pitch, yaw):

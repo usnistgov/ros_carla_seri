@@ -12,7 +12,10 @@ Class that handle communication between CARLA and ROS
 """
 
 import os
+import sys
+import yaml
 import pkg_resources
+from launch_ros.substitutions import FindPackageShare
 try:
     import queue
 except ImportError:
@@ -26,7 +29,7 @@ import carla
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 
-from carla_ros_bridge.actor import Actor
+# from carla_ros_bridge.actor import Actor
 from carla_ros_bridge.actor_factory import ActorFactory
 from carla_ros_bridge.carla_status_publisher import CarlaStatusPublisher
 from carla_ros_bridge.debug_helper import DebugHelper
@@ -61,7 +64,58 @@ class CarlaRosBridge(CompatibleNode):
         :type params: dict
         """
         super(CarlaRosBridge, self).__init__("ros_bridge_node")
+        self._output = ""
 
+    def read_yaml(self, path):
+        '''
+        Method to read a yaml file
+
+        Args:
+            path (str): absolute path to the yaml file
+
+        '''        
+        with open(path, "r") as stream:
+            try:
+                return yaml.safe_load(stream)
+            except yaml.YAMLError:
+                self.get_logger().error("Unable to read configuration file")
+                return {}
+
+    def set_weather(self):
+        """
+        Set CARLA weather according to the weather defined in the seri.yaml file
+
+        :param weather: weather object
+        :type weather: carla.WeatherParameters
+        """
+        pkg_share = FindPackageShare(package='carla_common').find('carla_common')
+        # Set the path to the world file
+        config_file_name = "seri.yaml"
+        config_file_path = os.path.join(pkg_share, 'config', config_file_name)
+
+        data = self.read_yaml(config_file_path)
+            
+        try:
+            weather = data["weather"]
+        except KeyError:
+            self.get_logger().info(
+                "YAML configuration file does not contain a 'weather' section")
+            sys.exit(1)
+            
+        msg = CarlaWeatherParameters()
+        msg.cloudiness = weather.get("cloudiness", 0.0)
+        msg.precipitation = weather.get("precipitation", 0.0)
+        msg.precipitation_deposits = weather.get("precipitation_deposits", 0.0)
+        msg.wind_intensity = weather.get("wind_intensity", 0.0)
+        msg.fog_density = weather.get("fog_density", 0.0)
+        msg.fog_distance = weather.get("fog_distance", 0.0)
+        msg.wetness = weather.get("wetness", 0.0)
+        msg.sun_azimuth_angle = weather.get("sun_azimuth_angle", 0.0)
+        msg.sun_altitude_angle = weather.get("sun_altitude_angle", 0.0)
+        self.carla_weather_publisher.publish(msg)
+        
+        
+        
     # pylint: disable=attribute-defined-outside-init
     def initialize_bridge(self, carla_world, params):
         """
@@ -83,25 +137,36 @@ class CarlaRosBridge(CompatibleNode):
                 self.carla_settings.synchronous_mode = False
                 carla_world.apply_settings(self.carla_settings)
 
-            self.loginfo("synchronous_mode: {}".format(
-                self.parameters["synchronous_mode"]))
+            # self.loginfo("synchronous_mode: {}".format(
+            #     self.parameters["synchronous_mode"]))
+            # output
+            self._output += f"synchronous_mode: {str(self.parameters['synchronous_mode'])}\n"
+
             self.carla_settings.synchronous_mode = self.parameters["synchronous_mode"]
-            self.loginfo("fixed_delta_seconds: {}".format(
-                self.parameters["fixed_delta_seconds"]))
+            # self.loginfo("fixed_delta_seconds: {}".format(
+            #     self.parameters["fixed_delta_seconds"]))
+            # output
+            self._output += f"fixed_delta_seconds: {str(self.parameters['fixed_delta_seconds'])}\n"
+
             self.carla_settings.fixed_delta_seconds = self.parameters["fixed_delta_seconds"]
             carla_world.apply_settings(self.carla_settings)
 
         self.loginfo("Parameters:")
+        # output
+        self._output += "Parameters\n"
+
         for key in self.parameters:
-            self.loginfo("  {}: {}".format(key, self.parameters[key]))
+            # self.loginfo("  {}: {}".format(key, self.parameters[key]))
+            # output
+            self._output += f"  {key}: {str(self.parameters[key])}\n"
 
         # active sync mode in the ros bridge only if CARLA world is configured in sync mode and
         # passive mode is not enabled.
         self.sync_mode = self.carla_settings.synchronous_mode and not self.parameters["passive"]
         if self.carla_settings.synchronous_mode and self.parameters["passive"]:
-            self.loginfo(
-                "Passive mode is enabled and CARLA world is configured in synchronous mode. This configuration requires another client ticking the CARLA world.")
-
+            # self.loginfo(
+            # "Passive mode is enabled and CARLA world is configured in synchronous mode. This configuration requires another client ticking the CARLA world.")
+            self._output += "Passive mode is enabled and CARLA world is configured in synchronous mode. This configuration requires another client ticking the CARLA world.\n"
         self.carla_control_queue = queue.Queue()
 
         # actor factory
@@ -159,8 +224,26 @@ class CarlaRosBridge(CompatibleNode):
         self.carla_weather_subscriber = \
             self.new_subscription(CarlaWeatherParameters, "/carla/weather_control",
                                   self.on_weather_changed, qos_profile=10, callback_group=self.callback_group)
+            
+        self.carla_weather_publisher = self.new_publisher(CarlaWeatherParameters, "/carla/weather_control", 10)
+            
+        # retrieve weather information from seri.yaml and publish it
+        self.set_weather()
+
+        # print output
+        self.loginfo(self._output)
 
     def spawn_object(self, req, response=None):
+        '''
+        Spawn objects in the world
+
+        Args:
+            req (carla_msgs/srv/SpawnObject): Client request
+            response (carla_msgs/srv/SpawnObject, optional): Server response Defaults to None.
+
+        Returns:
+            _type_: Server response
+        '''        
         response = roscomp.get_service_response(SpawnObject)
         if not self.shutdown.is_set():
             try:
@@ -198,24 +281,26 @@ class CarlaRosBridge(CompatibleNode):
         response.blueprints.sort()
         return response
 
-    def on_weather_changed(self, weather_parameters):
+    def on_weather_changed(self, msg: CarlaWeatherParameters):
         """
         Callback on new weather parameters
         :return:
         """
         if not self.carla_world:
             return
-        self.loginfo("Applying weather parameters...")
+        # self.loginfo("Applying weather parameters...")
+        self._output += "Applying weather parameters...\n"
+
         weather = carla.WeatherParameters()
-        weather.cloudiness = weather_parameters.cloudiness
-        weather.precipitation = weather_parameters.precipitation
-        weather.precipitation_deposits = weather_parameters.precipitation_deposits
-        weather.wind_intensity = weather_parameters.wind_intensity
-        weather.fog_density = weather_parameters.fog_density
-        weather.fog_distance = weather_parameters.fog_distance
-        weather.wetness = weather_parameters.wetness
-        weather.sun_azimuth_angle = weather_parameters.sun_azimuth_angle
-        weather.sun_altitude_angle = weather_parameters.sun_altitude_angle
+        weather.cloudiness = msg.cloudiness
+        weather.precipitation = msg.precipitation
+        weather.precipitation_deposits = msg.precipitation_deposits
+        weather.wind_intensity = msg.wind_intensity
+        weather.fog_density = msg.fog_density
+        weather.fog_distance = msg.fog_distance
+        weather.wetness = msg.wetness
+        weather.sun_azimuth_angle = msg.sun_azimuth_angle
+        weather.sun_altitude_angle = msg.sun_altitude_angle
         self.carla_world.set_weather(weather)
 
     def process_run_state(self):
@@ -338,6 +423,7 @@ class CarlaRosBridge(CompatibleNode):
         if roscomp.ok():
             self.ros_timestamp = roscomp.ros_timestamp(carla_timestamp.elapsed_seconds, from_sec=True)
             self.clock_publisher.publish(Clock(clock=self.ros_timestamp))
+            # self.loginfo(f"Clock: {Clock(clock=self.ros_timestamp)}")
 
     def destroy(self):
         """
@@ -402,8 +488,7 @@ def main(args=None):
                                        ["hero", "ego_vehicle", "hero1", "hero2", "hero3"])
     parameters["ego_vehicle"] = {"role_name": role_name}
 
-    carla_bridge.loginfo("Trying to connect to {host}:{port}".format(
-        host=parameters['host'], port=parameters['port']))
+    carla_bridge.loginfo(f"Trying to connect to {parameters['host']}:{parameters['port']}")
 
     try:
         carla_client = carla.Client(
@@ -429,16 +514,32 @@ def main(args=None):
 
         if "town" in parameters and not parameters['passive']:
             if parameters["town"].endswith(".xodr"):
-                carla_bridge.loginfo(
-                    "Loading opendrive world from file '{}'".format(parameters["town"]))
-                with open(parameters["town"]) as od_file:
+                carla_bridge.loginfo(f"""Loading opendrive world from file '{str(parameters["town"])}'""")
+
+                pkg_share = FindPackageShare(package='seri_maps').find('seri_maps')
+                # carla_bridge.loginfo(f"MAP package: '{str(pkg_share)}'")
+
+                # Set the path to the world file
+                map_file_name = str(parameters["town"])
+                map_file = os.path.join(pkg_share, 'maps', map_file_name)
+                # carla_bridge.loginfo(map_file)
+
+                with open(file=map_file) as od_file:
                     data = od_file.read()
                 carla_world = carla_client.generate_opendrive_world(str(data))
             else:
                 if carla_world.get_map().name != parameters["town"]:
+                    # self._output += f"Loading town {str(parameters['town'])} (previous: {carla_world.get_map().name}).\n"
                     carla_bridge.loginfo("Loading town '{}' (previous: '{}').".format(
                         parameters["town"], carla_world.get_map().name))
                     carla_world = carla_client.load_world(parameters["town"])
+                    # spawn_points = carla_world.get_map().get_spawn_points()
+                    # for point in spawn_points:
+                    #     carla_bridge.loginfo(f"Position: {point.location.x}, {point.location.y}, {point.location.z}")
+                    #     carla_bridge.loginfo(f"Rotation: {point.rotation.roll}, {point.rotation.pitch}, {point.rotation.yaw}")
+                    
+                    
+                    
             carla_world.tick()
 
         carla_bridge.initialize_bridge(carla_client.get_world(), parameters)

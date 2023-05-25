@@ -22,12 +22,14 @@
             "id": "map"
         },
         {
-            "type": "vehicle.tesla.model3",
-            "id": "ego_vehicle"
+            "type": "vehicle.volkswagen.t2_2021",
+            "id": "hero",
+            "spawn_point": {"x": 300.52, "y": -129.81, "z": 5.0, "roll": 0.0, "pitch": 0.0, "yaw": 180.0}
         },
         {
             "type": "vehicle.tesla.model3",
             "id": "ego_vehicle",
+            "spawn_point": {"x": 311.52, "y": -129.81, "z": 5.0, "roll": 0.0, "pitch": 0.0, "yaw": 180.0},
             "sensors": 
             [
                 {
