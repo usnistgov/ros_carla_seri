@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 2.8.3)
 project(carla_common)
 
 find_package(ros_environment REQUIRED)
+
+
+
 set(ROS_VERSION $ENV{ROS_VERSION})
 
 if(${ROS_VERSION} EQUAL 1)
@@ -16,3 +19,26 @@ if(${ROS_VERSION} EQUAL 1)
                         ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 endif()
+
+
+if(${ROS_VERSION} EQUAL 2)
+
+  find_package(ament_cmake REQUIRED)
+
+  install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}
+  )
+
+endif()
+
+
+
+
+
+
+
+
+
+
+
