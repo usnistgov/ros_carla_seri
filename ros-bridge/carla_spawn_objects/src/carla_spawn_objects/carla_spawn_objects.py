@@ -130,18 +130,6 @@ class CarlaSpawnObjects(CompatibleNode):
                         self.logwarn(
                             f"Object with type {str(value)} is not a vehicle, a walker or a sensor, ignoring")
 
-        # for actor in json_actors["objects"]:
-        #     actor_type = actor["type"].split('.')[0]
-        #     if actor["type"] == "sensor.pseudo.actor_list" and self.spawn_sensors_only:
-        #         global_sensors.append(actor)
-        #         found_sensor_actor_list = True
-        #     elif actor_type == "sensor":
-        #         global_sensors.append(actor)
-        #     elif actor_type == "vehicle" or actor_type == "walker":
-        #         vehicles.append(actor)
-        #     else:
-        #         self.logwarn(
-        #             "Object with type {} is not a vehicle, a walker or a sensor, ignoring".format(actor["type"]))
         if self.spawn_sensors_only is True and found_sensor_actor_list is False:
             raise RuntimeError("Parameter 'spawn_sensors_only' enabled, " +
                                "but 'sensor.pseudo.actor_list' is not instantiated, add it to your config file.")
@@ -158,8 +146,27 @@ class CarlaSpawnObjects(CompatibleNode):
                         vehicle["carla_id"] = actor_info.id
 
         self.setup_vehicles(vehicles)
+        
+        # Check if parked vehicles are defined in the yaml file
+        parked_vehicles = []
+        parked_vehicle_section = None
+        try:
+            parked_vehicle_section = self.config_file["parked_vehicle"]
+        except KeyError:
+            self.get_logger().warn(
+                "YAML configuration file does not contain any  parked vehicles")
+        
+        if parked_vehicle_section is not None:
+            for actor in parked_vehicle_section:
+                parked_vehicles.append(actor)
+                
+        self.setup_vehicles(parked_vehicles)
+            
+            
         self.loginfo("All objects spawned.")
 
+            
+            
     def setup_vehicles(self, vehicles):
         '''
         Spawn vehicles and their sensors

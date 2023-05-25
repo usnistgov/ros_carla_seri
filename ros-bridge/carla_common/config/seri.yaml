@@ -14,6 +14,18 @@ simulation:
   register_all_sensors: true
   ego_vehicle_role_name: ["hero", "ego_vehicle", "hero0", "hero1", "hero2", "hero3", "hero4", "hero5", "hero6", "hero7", "hero8", "hero9"]
 
+stop_sign:
+  - id: 'stop_sign_1'
+    location: {x: 102.70, y: -127.00, z: 38.10, roll: 0.0, pitch: 0.0, yaw: -90.0}
+
+parked_vehicle:
+  - name: 'parked_vehicle_1'
+    id: 'hero'
+    type: 'vehicle.nissan.patrol_2021'
+    spawn_point: {x: 280.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+    box_radius: {x: 2.49658310, y: 0.97084373, z: 0.78984779}
+
+
 weather: # Weather parameters: https://carla.readthedocs.io/en/latest/python_api/#carla.WeatherParameters
   # Values range from 0 to 100, being 0 a clear sky and 100 one completely covered with clouds. 
   cloudiness: 0.0
@@ -50,10 +62,10 @@ objects:
     id: 'map'
   - type: 'vehicle.volkswagen.t2_2021'
     id: 'ego_vehicle'
-    spawn_point: {x: 300.52, y: -129.81, z: 5.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+    spawn_point: {x: 200.52, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
   - type: 'vehicle.tesla.model3'
     id: 'ego_vehicle'
-    spawn_point: {x: 311.52, y: -129.81, z: 5.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+    spawn_point: {x: 320.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
     sensors:
       - type: 'sensor.camera.rgb'
         id: 'rgb_front'

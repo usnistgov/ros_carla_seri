@@ -14,13 +14,13 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='zeid',
-    maintainer_email='zeidk@umd.edu',
-    description='TODO: Package description',
+    maintainer_email='zeid.kootbally@nist.gov',
+    description='Controller for an ego vehicle in the carla simulator',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'commander_py = commander_py.commander_main:main',
+            'commander_py = node.commander_main:main',
         ],
     },
 )
