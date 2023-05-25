@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import setup
 
 package_name = 'commander_py'
@@ -20,7 +22,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'commander_py = node.commander_main:main',
+            'commander_py = commander_py.commander_main:main',
         ],
     },
 )

@@ -20,12 +20,9 @@ try:
     import queue
 except ImportError:
     import Queue as queue
-import sys
 from distutils.version import LooseVersion
 from threading import Thread, Lock, Event
-
 import carla
-
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 
@@ -89,7 +86,7 @@ class CarlaRosBridge(CompatibleNode):
         :type weather: carla.WeatherParameters
         """
         pkg_share = FindPackageShare(package='carla_common').find('carla_common')
-        # Set the path to the world file
+        print(pkg_share)
         config_file_name = "seri.yaml"
         config_file_path = os.path.join(pkg_share, 'config', config_file_name)
 

@@ -20,7 +20,7 @@ stop_sign:
 
 parked_vehicle:
   - name: 'parked_vehicle_1'
-    id: 'hero'
+    id: 'hero1'
     type: 'vehicle.nissan.patrol_2021'
     spawn_point: {x: 280.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
     box_radius: {x: 2.49658310, y: 0.97084373, z: 0.78984779}
@@ -61,7 +61,7 @@ objects:
   - type: 'sensor.pseudo.opendrive_map'
     id: 'map'
   - type: 'vehicle.volkswagen.t2_2021'
-    id: 'ego_vehicle'
+    id: 'hero0'
     spawn_point: {x: 200.52, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
   - type: 'vehicle.tesla.model3'
     id: 'ego_vehicle'
