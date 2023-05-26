@@ -10,8 +10,8 @@ API documentation and generated content
 
 .. only:: python3
 
-    .. automodule:: commander_py.test
-        :members:
-        :private-members:
-        :special-members:
+    .. autosummary::
+
+        commander_py.commander_interface
+
 
