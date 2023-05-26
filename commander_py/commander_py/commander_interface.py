@@ -3,8 +3,13 @@
 Node to command the ego vehicle
 '''
 
-# pylint: disable=locally-disabled, multiple-statements, fixme, line-too-long
-
+# R0902: too-many-instance-attributes
+# R0915: too-many-statements
+# pylint: disable=locally-disabled, multiple-statements
+# pylint: disable=locally-disabled, fixme
+# pylint: disable=locally-disabled, line-too-long
+# pylint: disable=locally-disabled, R0902
+# pylint: disable=locally-disabled, R0915
 import os
 import sys
 import csv
@@ -27,7 +32,7 @@ from commander_py import (
 # import pygame
 # import carla
 
-#===============================================================
+# ===============================================================
 __author__ = "Zeid Kootbally"
 __credits__ = ["Zeid Kootbally"]
 __license__ = "GPL"
@@ -85,10 +90,10 @@ class VehicleCommanderInterface(Node):
         subscription_group = MutuallyExclusiveCallbackGroup()
 
         #############################################
-        # subscriber
+        # Subscribers
         #############################################
         self.create_subscription(CarlaEgoVehicleStatus, '/carla/ego_vehicle/vehicle_status',
-                                 self._vehicle_status_cb, 10, callback_group=subscription_group)
+                                 self._leader_vehicle_status_cb, 10, callback_group=subscription_group)
 
         self._current_velocity = 0
 
@@ -804,7 +809,7 @@ class VehicleCommanderInterface(Node):
         '''
         self._current_time = msg.clock.sec
 
-    def _vehicle_status_cb(self, msg: CarlaEgoVehicleStatus):
+    def _leader_vehicle_status_cb(self, msg: CarlaEgoVehicleStatus):
         '''
         /carla/ego_vehicle/vehicle_status topic callback function
 
