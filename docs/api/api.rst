@@ -12,6 +12,6 @@ API documentation and generated content
 
     .. autosummary::
 
-        commander_py.commander_py.commander_interface.VehicleCommanderInterface
+        ../../commander_py.commander_py.commander_interface.VehicleCommanderInterface
 
 
