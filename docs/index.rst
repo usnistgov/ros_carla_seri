@@ -22,12 +22,12 @@ Github repository: `https://www.github.com/usnistgov/ARIAC/ <https://www.github.
 ..    getting_started/registering
 ..    getting_started/events
 
-.. .. toctree::
-..    :caption: ⏩ Competition Specifications
-..    :maxdepth: 3
-..    :hidden:
+.. toctree::
+   :caption: ⏩ Python API
+   :maxdepth: 3
+   :hidden:
 
-..    competition/terminology
+   api/api.rst
 ..    competition/overview
 ..    competition/environment
 ..    competition/orders
