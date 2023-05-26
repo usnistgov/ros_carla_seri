@@ -14,6 +14,9 @@ import scipy.integrate
 
 
 class PathOptimizer:
+    '''
+    Class for path optimization
+    '''    
     def __init__(self):
         self._xf = 0.0
         self._yf = 0.0
@@ -82,26 +85,28 @@ class PathOptimizer:
         spiral = self.sample_spiral(res.x)
         return spiral
 
-    ######################################################
-    ######################################################
-    # MODULE 7: COMPUTE LIST OF THETAS
-    #   Read over the function comments to familiarize yourself with the
-    #   arguments and necessary variables to return. Then follow the TODOs
-    #   (top-down) and use the surrounding comments as a guide.
-    ######################################################
-    ######################################################
-    # This function computes the theta values for a given list of
-    # arc lengths, and spiral parameters a, b, c, d.
-    # Recall that the equation of a cubic spiral is
-    # kappa(s) = a + b*s + c*s^2 + d*s^3
-    # and since theta(s) is the integral of kappa(s) with respect to
-    # arc length, then theta(s) = a*s + b/2*s^2 + c/3*s^3 + d/4*s^4.
-    # Try to vectorize this function using numpy for speed, if you can.
-    # Inputs: a - the first term of kappa(s).
-    #         b - the second term of kappa(s).
-    #         c - the third term of kappa(s).
-    #         d - the fourth term of kappa(s).
+
     def thetaf(self, a, b, c, d, s):
+        '''
+        This function computes the theta values for a given list of 
+        arc lengths, and spiral parameters a, b, c, d.
+        Recall that the equation of a cubic spiral is
+        kappa(s) = a + b*s + c*s^2 + d*s^3
+        and since theta(s) is the integral of kappa(s) with respect to
+        arc length, then theta(s) = a*s + b/2*s^2 + c/3*s^3 + d/4*s^4.
+        
+        TODO: Try to vectorize this function using numpy for speed, if you can.
+
+        Args:
+            a (list): the first term of kappa(s).
+            b (list): the second term of kappa(s).
+            c (list): the third term of kappa(s).
+            d (list): the fourth term of kappa(s).
+            s (list): spiral
+
+        Returns:
+            list: theta values for a given list of arc lengths, and spiral parameters a, b, c, d.
+        '''        
         # ------------------------------------------------------------------
         # # Remember that a, b, c, d and s are lists
         # ...
