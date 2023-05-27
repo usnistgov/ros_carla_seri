@@ -10,7 +10,7 @@ API documentation and generated content
 
 .. only:: python3
 
-    .. automodule:: commander_py.commander_interface.VehicleCommanderInterface
+    .. automodule:: commander_py.commander_py.commander_interface.VehicleCommanderInterface
         :members:
         :private-members:
         :special-members:
