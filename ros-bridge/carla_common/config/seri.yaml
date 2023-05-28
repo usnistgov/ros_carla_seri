@@ -18,12 +18,12 @@ stop_sign:
   - id: 'stop_sign_1'
     location: {x: 102.70, y: -127.00, z: 38.10, roll: 0.0, pitch: 0.0, yaw: -90.0}
 
-parked_vehicle:
-  - name: 'parked_vehicle_1'
-    id: 'hero1'
-    type: 'vehicle.nissan.patrol_2021'
-    spawn_point: {x: 280.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
-    box_radius: {x: 2.49658310, y: 0.97084373, z: 0.78984779}
+# parked_vehicle:
+#   - name: 'parked_vehicle_1'
+#     id: 'hero1'
+#     type: 'vehicle.nissan.patrol_2021'
+#     spawn_point: {x: 280.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+#     box_radius: {x: 2.49658310, y: 0.97084373, z: 0.78984779}
 
 
 weather: # Weather parameters: https://carla.readthedocs.io/en/latest/python_api/#carla.WeatherParameters
@@ -60,12 +60,24 @@ objects:
     id: 'markers'
   - type: 'sensor.pseudo.opendrive_map'
     id: 'map'
-  - type: 'vehicle.volkswagen.t2_2021'
-    id: 'hero0'
-    spawn_point: {x: 200.52, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+  # - type: 'vehicle.volkswagen.t2_2021'
+  - type: 'vehicle.lincoln.mkz_2017'
+    id: 'hero'
+    spawn_point: {x: 300.0, y: -129.81, z: 3.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+    sensors:
+      - type: 'sensor.pseudo.tf'
+        id: 'tf'
+      - type: 'sensor.pseudo.objects'
+        id: 'objects'
+      - type: 'sensor.pseudo.odom'
+        id: 'odometry'
+      - type: 'sensor.pseudo.speedometer'
+        id: 'speedometer'
+      - type: 'actor.pseudo.control'
+        id: 'control'
   - type: 'vehicle.tesla.model3'
     id: 'ego_vehicle'
-    spawn_point: {x: 320.0, y: -129.81, z: 4.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
+    spawn_point: {x: 320.0, y: -129.81, z: 3.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
     sensors:
       - type: 'sensor.camera.rgb'
         id: 'rgb_front'

@@ -18,8 +18,8 @@ finally ask for a random one to the spawn service.
 import json
 import math
 import os
-import yaml
 import sys
+import yaml
 
 from transforms3d.euler import euler2quat
 

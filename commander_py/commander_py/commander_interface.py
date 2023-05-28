@@ -10,12 +10,14 @@ Node to command the ego vehicle
 # pylint: disable=locally-disabled, line-too-long
 # pylint: disable=locally-disabled, R0902
 # pylint: disable=locally-disabled, R0915
+# pylint: disable=locally-disabled, R0914
 import os
 import sys
 import csv
 import math
 import numpy as np
 import yaml
+import tf_transformations
 # import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -90,58 +92,73 @@ class VehicleCommanderInterface(Node):
         subscription_group = MutuallyExclusiveCallbackGroup()
 
         #############################################
-        # Subscribers
+        # Follower
         #############################################
-        self.create_subscription(CarlaEgoVehicleStatus, '/carla/ego_vehicle/vehicle_status',
-                                 self._leader_vehicle_status_cb, 10, callback_group=subscription_group)
 
-        self._current_velocity = 0
-
-        self.create_subscription(CarlaEgoVehicleStatus, '/carla/hero0/vehicle_status',
-                                 self._hero_status_cb, 10, callback_group=subscription_group)
-
-        self._current_hero_velocity = 0
-
-        self._current_x = 0
-        self._current_y = 0
-        self._current_rot_x = 0
-        self._current_rot_y = 0
-        self._current_rot_z = 0
-        self._current_rot_w = 0
-        self._current_roll = 0
-        self._current_pitch = 0
-        self._current_yaw = 0
+        # Subscribers
+        self.create_subscription(CarlaEgoVehicleStatus,
+                                 '/carla/ego_vehicle/vehicle_status',
+                                 self._follower_status_cb,
+                                 10,
+                                 callback_group=subscription_group)
 
         self.create_subscription(Odometry, '/carla/ego_vehicle/odometry',
-                                 self._vehicle_odometry_cb, 10, callback_group=subscription_group)
+                                 self._follower_odometry_cb, 10, callback_group=subscription_group)
 
-        self._current_x = 0
-        self._current_y = 0
-        self._current_rot_x = 0
-        self._current_rot_y = 0
-        self._current_rot_z = 0
-        self._current_rot_w = 0
-        self._current_roll = 0
-        self._current_pitch = 0
-        self._current_yaw = 0
+        self._follower_current_velocity = 0
+        self._follower_current_x = 0
+        self._follower_current_y = 0
+        self._follower_current_rot_x = 0
+        self._follower_current_rot_y = 0
+        self._follower_current_rot_z = 0
+        self._follower_current_rot_w = 0
+        self._follower_current_roll = 0
+        self._follower_current_pitch = 0
+        self._follower_current_yaw = 0
 
+        # Publisher
+        self._follower_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl, '/carla/ego_vehicle/vehicle_control_cmd', 10)
+        self._follower_vehicle_control = CarlaEgoVehicleControl()
+
+        #############################################
+        # Leader
+        #############################################
+        self.create_subscription(CarlaEgoVehicleStatus,
+                                 '/carla/hero/vehicle_status',
+                                 self._leader_status_cb,
+                                 10,
+                                 callback_group=subscription_group)
+
+        self.create_subscription(Odometry, '/carla/hero/odometry',
+                                 self._leader_odometry_cb, 10, callback_group=subscription_group)
+
+        self._leader_current_velocity = 0
+        self._leader_current_x = 0
+        self._leader_current_y = 0
+        self._leader_current_rot_x = 0
+        self._leader_current_rot_y = 0
+        self._leader_current_rot_z = 0
+        self._leader_current_rot_w = 0
+        self._leader_current_roll = 0
+        self._leader_current_pitch = 0
+        self._leader_current_yaw = 0
+
+        # Publisher
+        self._leader_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 10)
+        self._leader_vehicle_control = CarlaEgoVehicleControl()
+
+        self._leader_autopilot_publisher = self.create_publisher(
+            Bool, '/carla/hero/enable_autopilot', 10)
+        self._leader_autopilot_control = Bool()
+
+        #############################################
+        # Simulation time
+        #############################################
         self.create_subscription(Clock, '/clock',
                                  self._clock_cb, 10, callback_group=subscription_group)
-
         self._current_time = 0
-
-        #############################################
-        # publisher
-        #############################################
-        self._tesla_cmd_publisher = self.create_publisher(
-            CarlaEgoVehicleControl, '/carla/ego_vehicle/vehicle_control_cmd', 10)
-        # message to publish
-        self._tesla_controller = CarlaEgoVehicleControl()
-
-        self._volkswagen_autopilot_publisher = self.create_publisher(
-            Bool, '/carla/hero1/enable_autopilot', 10)
-        self._nissan_autopilot_publisher = self.create_publisher(
-            Bool, '/carla/hero0/enable_autopilot', 10)
 
         #############################################
         # timer
@@ -187,33 +204,33 @@ class VehicleCommanderInterface(Node):
         # and apply it to the simulator
         self._controller = controller2d.Controller2D(self._waypoints)
 
-        # #############################################
-        # # Determine simulation average timestep (and total frames)
-        # #############################################
-        # # Ensure at least one frame is used to compute average timestep
-        # num_iterations = self.ITER_FOR_SIM_TIMESTEP
-        # if (self.ITER_FOR_SIM_TIMESTEP < 1):
-        #     num_iterations = 1
+        #############################################
+        # Determine simulation average timestep (and total frames)
+        #############################################
+        # Ensure at least one frame is used to compute average timestep
+        num_iterations = self.ITER_FOR_SIM_TIMESTEP
+        if self.ITER_FOR_SIM_TIMESTEP < 1:
+            num_iterations = 1
 
         # Gather current data from the CARLA server. This is used to get the
         # simulator starting game time. Note that we also need to
         # send a command back to the CARLA server because synchronous mode
         # is enabled.
 
-        # sim_start_stamp = self._current_time
+        sim_start_stamp = self._current_time
         # # Send a control command to proceed to next iteration.
         # # This mainly applies for simulations that are in synchronous mode.
-        self._send_vehicle_cmd(throttle=0.0, steer=0.0, brake=1.0)
+        self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
 
-        # # Computes the average timestep based on several initial iterations
-        # sim_duration = 0
-        # for i in range(num_iterations):
-        #     # Gather current data
-        #     # Send a control command to proceed to next iteration
-        #     self._send_vehicle_cmd(throttle=0.0, steer=0.0, brake=1.0)
-        #     # Last stamp
-        #     if i == num_iterations - 1:
-        #         sim_duration = self._current_time - sim_start_stamp
+        # Computes the average timestep based on several initial iterations
+        sim_duration = 0
+        for i in range(num_iterations):
+            # Gather current data
+            # Send a control command to proceed to next iteration
+            self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
+            # Last stamp
+            if i == num_iterations - 1:
+                sim_duration = self._current_time - sim_start_stamp
 
         # # Outputs average simulation timestep and computes how many frames
         # # will elapse before the simulation should end based on various
@@ -230,10 +247,10 @@ class VehicleCommanderInterface(Node):
         #############################################
         # Store pose history starting from the start position
         self._start_timestamp = self._current_time
-        self._send_vehicle_cmd(throttle=0.0, steer=0.0, brake=1.0)
-        self._x_history = [self._current_x]
-        self._y_history = [self._current_y]
-        self._yaw_history = [self._current_yaw]
+        self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
+        self._x_history = [self._follower_current_x]
+        self._y_history = [self._follower_current_y]
+        self._yaw_history = [self._follower_current_yaw]
         self._time_history = [0]
         self._speed_history = [0]
         self._collided_flag_history = [False]  # assume player starts off non-collided
@@ -256,225 +273,6 @@ class VehicleCommanderInterface(Node):
         self._behavioral_planner = behavioral_planner.BehaviouralPlanner(self.BP_LOOKAHEAD_BASE,
                                                                          self._stopsign_fences,
                                                                          self.LEAD_VEHICLE_LOOKAHEAD)
-
-        # #############################################
-        # # Scenario Execution Loop
-        # #############################################
-
-        # # Iterate the frames until the end of the waypoints is reached or
-        # # the TOTAL_EPISODE_FRAMES is reached. The controller simulation then
-        # # ouptuts the results to the controller output directory.
-        # reached_the_end = False
-        # skip_first_frame = True
-
-        # # Initialize the current timestamp.
-        # current_timestamp = start_timestamp
-
-        # # Initialize collision history
-        # prev_collision_vehicles = 0
-        # prev_collision_pedestrians = 0
-        # prev_collision_other = 0
-
-        # for frame in range(TOTAL_EPISODE_FRAMES):
-        #     # Gather current data from the CARLA server
-
-        #     # Update pose and timestamp
-        #     prev_timestamp = current_timestamp
-        #     current_x = self._current_x
-        #     current_y = self._current_y
-        #     current_yaw = self._current_yaw
-
-        #     current_speed = self._current_velocity
-        #     current_timestamp = float(self._current_time)
-
-        #     # Wait for some initial time before starting the demo
-        #     if current_timestamp <= self.WAIT_TIME_BEFORE_START:
-        #         self._send_vehicle_cmd(0.0, 0.0, 1.0)
-        #         continue
-        #     else:
-        #         current_timestamp = current_timestamp - self.WAIT_TIME_BEFORE_START
-
-        #     # Store history
-        #     x_history.append(current_x)
-        #     y_history.append(current_y)
-        #     yaw_history.append(current_yaw)
-        #     speed_history.append(current_speed)
-        #     time_history.append(current_timestamp)
-
-        #     # Store collision history
-        #     # collided_flag, prev_collision_vehicles, prev_collision_pedestrians, prev_collision_other = get_player_collided_flag(
-        #     #     measurement_data, prev_collision_vehicles, prev_collision_pedestrians, prev_collision_other)
-        #     # collided_flag_history.append(collided_flag)
-
-        #     ###
-        #     # Local Planner Update:
-        #     #   This will use the behavioural_planner.py and local_planner.py
-        #     #   implementations that the learner will be tasked with in
-        #     #   the Course 4 final project
-        #     ###
-
-        #     # Obtain Lead Vehicle information.
-        #     lead_car_pos = []
-        #     lead_car_length = []
-        #     lead_car_speed = []
-
-        #     # lead_car_pos.append([agent.vehicle.transform.location.x, agent.vehicle.transform.location.y])
-        #     # lead_car_length.append(agent.vehicle.bounding_box.extent.x)
-        #     # lead_car_speed.append(self._current_hero_velocity)
-
-        #     # Execute the behaviour and local planning in the current instance
-        #     # Note that updating the local path during every controller update
-        #     # produces issues with the tracking performance (imagine everytime
-        #     # the controller tried to follow the path, a new path appears). For
-        #     # this reason, the local planner (LP) will update every X frame,
-        #     # stored in the variable LP_FREQUENCY_DIVISOR, as it is analogous
-        #     # to be operating at a frequency that is a division to the
-        #     # simulation frequency.
-        #     if frame % self.LP_FREQUENCY_DIVISOR == 0:
-        #         # TODO Once you have completed the prerequisite functions of each of these
-        #         # lines, you can uncomment the code below the dashed line to run the planner.
-        #         # Note that functions lower in this block often require outputs from the functions
-        #         # earlier in this block, so it may be easier to implement those first to
-        #         # get a more intuitive flow of the planner.
-        #         # In addition, some of these functions have already been implemented for you,
-        #         # but it is useful for you to understand what each function is doing.
-        #         # Before you uncomment a function, please take the time to take a look at
-        #         # it and understand what is going on. It will also help inform you on the
-        #         # flow of the planner, which in turn will help you implement the functions
-        #         # flagged for you in the TODO's.
-
-        #         # TODO: Uncomment each code block between the dashed lines to run the planner.
-        #         # --------------------------------------------------------------
-        #         #  # Compute open loop speed estimate.
-        #         open_loop_speed = lp._velocity_planner.get_open_loop_speed(current_timestamp - prev_timestamp)
-
-        #         #  # Calculate the goal state set in the local frame for the local planner.
-        #         #  # Current speed should be open loop for the velocity profile generation.
-        #         ego_state = [current_x, current_y, current_yaw, open_loop_speed]
-
-        #         #  # Set lookahead based on current speed.
-        #         bp.set_lookahead(self.BP_LOOKAHEAD_BASE + self.BP_LOOKAHEAD_TIME * open_loop_speed)
-
-        #         #  # Perform a state transition in the behavioural planner.
-        #         bp.transition_state(self._waypoints, ego_state, current_speed)
-
-        #         #  # Check to see if we need to follow the lead vehicle.
-        #         bp.check_for_lead_vehicle(ego_state, lead_car_pos[1])
-
-        #         #  # Compute the goal state set from the behavioural planner's computed goal state.
-        #         goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, self._waypoints, ego_state)
-
-        #         #  # Calculate planned paths in the local frame.
-        #         paths, path_validity = lp.plan_paths(goal_state_set)
-
-        #         #  # Transform those paths back to the global frame.
-        #         paths = local_planner.transform_paths(paths, ego_state)
-
-        #         #  # Perform collision checking.
-        #         collision_check_array = lp._collision_checker.collision_check(paths, [self._parked_vehicle_box_pts])
-
-        #         #  # Compute the best local path.
-        #         best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
-        #         # If no path was feasible, continue to follow the previous best path.
-        #         if best_index == None:
-        #             best_path = lp._prev_best_path
-        #         else:
-        #             best_path = paths[best_index]
-        #             lp._prev_best_path = best_path
-
-        #         #  # Compute the velocity profile for the path, and compute the waypoints.
-        #         #  # Use the lead vehicle to inform the velocity profile's dynamic obstacle handling.
-        #         #  # In this scenario, the only dynamic obstacle is the lead vehicle at index 1.
-        #         desired_speed = bp._goal_state[2]
-        #         lead_car_state = [lead_car_pos[1][0], lead_car_pos[1][1], lead_car_speed[1]]
-        #         decelerate_to_stop = bp._state == behavioral_planner.DECELERATE_TO_STOP
-        #         local_waypoints = lp._velocity_planner.compute_velocity_profile(
-        #             best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, bp._follow_lead_vehicle)
-        #         # --------------------------------------------------------------
-
-        #         if local_waypoints != None:
-        #             # Update the controller waypoint path with the best local path.
-        #             # This controller is similar to that developed in Course 1 of this
-        #             # specialization.  Linear interpolation computation on the waypoints
-        #             # is also used to ensure a fine resolution between points.
-        #             wp_distance = []   # distance array
-        #             local_waypoints_np = np.array(local_waypoints)
-        #             for i in range(1, local_waypoints_np.shape[0]):
-        #                 wp_distance.append(
-        #                     np.sqrt((local_waypoints_np[i, 0] - local_waypoints_np[i-1, 0])**2 +
-        #                             (local_waypoints_np[i, 1] - local_waypoints_np[i-1, 1])**2))
-        #             wp_distance.append(0)  # last distance is 0 because it is the distance
-        #             # from the last waypoint to the last waypoint
-
-        #             # Linearly interpolate between waypoints and store in a list
-        #             wp_interp = []    # interpolated values
-        #             # (rows = waypoints, columns = [x, y, v])
-        #             for i in range(local_waypoints_np.shape[0] - 1):
-        #                 # Add original waypoint to interpolated waypoints list (and append
-        #                 # it to the hash table)
-        #                 wp_interp.append(list(local_waypoints_np[i]))
-
-        #                 # Interpolate to the next waypoint. First compute the number of
-        #                 # points to interpolate based on the desired resolution and
-        #                 # incrementally add interpolated points until the next waypoint
-        #                 # is about to be reached.
-        #                 num_pts_to_interp = int(np.floor(wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
-        #                 wp_vector = local_waypoints_np[i+1] - local_waypoints_np[i]
-        #                 wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
-
-        #                 for j in range(num_pts_to_interp):
-        #                     next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
-        #                     wp_interp.append(list(local_waypoints_np[i] + next_wp_vector))
-        #             # add last waypoint at the end
-        #             wp_interp.append(list(local_waypoints_np[-1]))
-
-        #             # Update the other controller values and controls
-        #             self._controller.update_waypoints(wp_interp)
-
-        #     ###
-        #     # Controller Update
-        #     ###
-        #     if local_waypoints is not None and local_waypoints != []:
-        #         self._controller.update_values(current_x, current_y, current_yaw,
-        #                                  current_speed,
-        #                                  current_timestamp, frame)
-        #         self._controller.update_controls()
-        #         cmd_throttle, cmd_steer, cmd_brake = self._controller.get_commands()
-        #     else:
-        #         cmd_throttle = 0.0
-        #         cmd_steer = 0.0
-        #         cmd_brake = 0.0
-
-        #     # Skip the first frame or if there exists no local paths
-        #     if skip_first_frame and frame == 0:
-        #         pass
-        #     elif local_waypoints == None:
-        #         pass
-        #     else:
-        #         pass
-
-        #     # Output controller command to CARLA server
-        #     self._send_vehicle_cmd(cmd_throttle, cmd_steer, cmd_brake)
-
-        #     # Find if reached the end of waypoint. If the car is within
-        #     # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
-        #     # the simulation will end.
-        #     dist_to_last_waypoint = np.linalg.norm(np.array([
-        #         self._waypoints[-1][0] - current_x,
-        #         self._waypoints[-1][1] - current_y]))
-        #     if dist_to_last_waypoint < self.DIST_THRESHOLD_TO_LAST_WAYPOINT:
-        #         reached_the_end = True
-        #     if reached_the_end:
-        #         break
-
-        # # End of demo - Stop vehicle and Store outputs to the controller output
-        # # directory.
-        # if reached_the_end:
-        #     print("Reached the end of path. Writing to controller_output...")
-        # else:
-        #     print("Exceeded assessment time. Writing to controller_output...")
-        # # Stop the car
-        # self._send_vehicle_cmd(0.0, 0.0, 1.0)
 
     def run(self):
         '''
@@ -500,17 +298,17 @@ class VehicleCommanderInterface(Node):
 
         # Update pose and timestamp
         prev_timestamp = current_timestamp
-        current_x = self._current_x
-        current_y = self._current_y
-        current_yaw = self._current_yaw
+        current_x = self._follower_current_x
+        current_y = self._follower_current_y
+        current_yaw = self._follower_current_yaw
 
-        current_speed = self._current_velocity
+        current_speed = self._follower_current_velocity
         current_timestamp = float(self._current_time)
 
         # Wait for some initial time before starting the demo
-        self._send_vehicle_cmd(0.0, 0.0, 1.0)
+        self._send_follower_cmd(0.0, 0.0, 1.0)
         # if current_timestamp <= self.WAIT_TIME_BEFORE_START:
-        #     self._send_vehicle_cmd(0.0, 0.0, 1.0)
+        #     self._send_follower_cmd(0.0, 0.0, 1.0)
         #     continue
         # else:
         #     current_timestamp = current_timestamp - self.WAIT_TIME_BEFORE_START
@@ -537,9 +335,9 @@ class VehicleCommanderInterface(Node):
         lead_car_length = []
         lead_car_speed = []
 
-        # lead_car_pos.append([agent.vehicle.transform.location.x, agent.vehicle.transform.location.y])
-        # lead_car_length.append(agent.vehicle.bounding_box.extent.x)
-        # lead_car_speed.append(self._current_hero_velocity)
+        lead_car_pos.append([agent.vehicle.transform.location.x, agent.vehicle.transform.location.y])
+        lead_car_length.append(agent.vehicle.bounding_box.extent.x)
+        lead_car_speed.append(self._leader_current_velocity)
 
         # Execute the behaviour and local planning in the current instance
         # Note that updating the local path during every controller update
@@ -665,7 +463,7 @@ class VehicleCommanderInterface(Node):
             #     pass
 
             # Output controller command to CARLA server
-            self._send_vehicle_cmd(cmd_throttle, cmd_steer, cmd_brake)
+            self._send_follower_cmd(cmd_throttle, cmd_steer, cmd_brake)
 
             # Find if reached the end of waypoint. If the car is within
             # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
@@ -677,33 +475,7 @@ class VehicleCommanderInterface(Node):
                 reached_the_end = True
             if reached_the_end:
                 # stop the vehicle
-                self._send_vehicle_cmd(0.0, 0.0, 1.0)
-
-    def euler_from_quaternion(self):
-        """
-        Converts quaternion (w in last place) to euler roll, pitch, yaw
-        quaternion = [x, y, z, w]
-        """
-        x = self._current_rot_x
-        y = self._current_rot_y
-        z = self._current_rot_z
-        w = self._current_rot_w
-
-        sinr_cosp = 2 * (w * x + y * z)
-        cosr_cosp = 1 - 2 * (x * x + y * y)
-        roll = np.arctan2(sinr_cosp, cosr_cosp)
-
-        sinp = 2 * (w * y - z * x)
-        pitch = np.arcsin(sinp)
-
-        siny_cosp = 2 * (w * z + x * y)
-        cosy_cosp = 1 - 2 * (y * y + z * z)
-        yaw = np.arctan2(siny_cosp, cosy_cosp)
-
-        self._current_roll = roll
-        self._current_pitch = pitch
-
-        self._current_yaw = math.radians(yaw)
+                self._send_follower_cmd(0.0, 0.0, 1.0)
 
     def read_yaml(self, path):
         '''
@@ -809,46 +581,70 @@ class VehicleCommanderInterface(Node):
         '''
         self._current_time = msg.clock.sec
 
-    def _leader_vehicle_status_cb(self, msg: CarlaEgoVehicleStatus):
+    def _follower_status_cb(self, msg: CarlaEgoVehicleStatus):
         '''
         /carla/ego_vehicle/vehicle_status topic callback function
 
         Args:
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
-        self._current_velocity = msg.velocity
+        self._follower_current_velocity = msg.velocity
         # self.get_logger().info(f'Velocity: {msg.velocity}')
         # self.get_logger().info(f'Throttle: {msg.control.throttle}')
         # self.get_logger().info(f'Steer: {msg.control.steer}')
         # self.get_logger().info(f'Break: {msg.control.brake}')
 
-    def _hero_status_cb(self, msg: CarlaEgoVehicleStatus):
+    def _leader_status_cb(self, msg: CarlaEgoVehicleStatus):
         '''
         /carla/ego_vehicle/vehicle_status topic callback function
 
         Args:
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
-        self._current_hero_velocity = msg.velocity
+        self._leader_current_velocity = msg.velocity
 
-    def _vehicle_odometry_cb(self, msg: Odometry):
+    def _follower_odometry_cb(self, msg: Odometry):
         '''
         /carla/ego_vehicle/odometry topic callback function
 
         Args:
             msg (Odometry): Odometry message
         '''
-        self._current_x = msg.pose.pose.position.x
-        self._current_y = msg.pose.pose.position.y
-        self._current_rot_x = msg.pose.pose.orientation.x
-        self._current_rot_y = msg.pose.pose.orientation.y
-        self._current_rot_z = msg.pose.pose.orientation.z
-        self._current_rot_w = msg.pose.pose.orientation.w
-        self.euler_from_quaternion()
+        self._follower_current_x = msg.pose.pose.position.x
+        self._follower_current_y = msg.pose.pose.position.y
+        self._follower_current_rot_x = msg.pose.pose.orientation.x
+        self._follower_current_rot_y = msg.pose.pose.orientation.y
+        self._follower_current_rot_z = msg.pose.pose.orientation.z
+        self._follower_current_rot_w = msg.pose.pose.orientation.w
+        self._follower_current_yaw = tf_transformations.euler_from_quaternion(
+            [self._follower_current_rot_x,
+             self._follower_current_rot_y,
+             self._follower_current_rot_z,
+             self._follower_current_rot_w])[2]
+        
 
-    def _send_vehicle_cmd(self, throttle: float, steer: float, brake: float):
+    def _leader_odometry_cb(self, msg: Odometry):
         '''
-        Send vehicle command to the vehicle
+        /carla/hero/odometry topic callback function
+
+        Args:
+            msg (Odometry): Odometry message
+        '''
+        self._leader_current_x = msg.pose.pose.position.x
+        self._leader_current_y = msg.pose.pose.position.y
+        self._leader_current_rot_x = msg.pose.pose.orientation.x
+        self._leader_current_rot_y = msg.pose.pose.orientation.y
+        self._leader_current_rot_z = msg.pose.pose.orientation.z
+        self._leader_current_rot_w = msg.pose.pose.orientation.w
+        self._leader_current_yaw = tf_transformations.euler_from_quaternion(
+            [self._leader_current_rot_x,
+             self._leader_current_rot_y,
+             self._leader_current_rot_z,
+             self._leader_current_rot_w])[2]
+
+    def _send_follower_cmd(self, throttle: float, steer: float, brake: float):
+        '''
+        Send vehicle command to the follower vehicle
 
         Args:
             throttle (float): Throttle value
@@ -856,10 +652,10 @@ class VehicleCommanderInterface(Node):
             brake (float): Brake value
         '''
 
-        self._tesla_controller.throttle = throttle
-        self._tesla_controller.steer = steer
-        self._tesla_controller.brake = brake
-        self._tesla_cmd_publisher.publish(self._tesla_controller)
+        self._follower_vehicle_control.throttle = throttle
+        self._follower_vehicle_control.steer = steer
+        self._follower_vehicle_control.brake = brake
+        self._follower_cmd_publisher.publish(self._follower_vehicle_control)
 
     def _vehicle_action_timer_callback(self):
         '''
@@ -869,8 +665,8 @@ class VehicleCommanderInterface(Node):
         # self.get_logger().info(f'\N{dog} {pygame.time.Clock()}')
         # self.get_logger().info(f'\N{dog} {carla.libcarla.}')
 
-        # self._tesla_controller.gear = 1
-        # self._tesla_controller.throttle = 0.3
-        # self._tesla_controller.reverse = False
-        # self.get_logger().info(f'\N{dog} Publishing throttle {self._tesla_controller.throttle}')
-        # self._tesla_cmd_publisher.publish(self._tesla_controller)
+        # self._follower_vehicle_control.gear = 1
+        # self._follower_vehicle_control.throttle = 0.3
+        # self._follower_vehicle_control.reverse = False
+        # self.get_logger().info(f'\N{dog} Publishing throttle {self._follower_vehicle_control.throttle}')
+        # self._follower_cmd_publisher.publish(self._follower_vehicle_control)

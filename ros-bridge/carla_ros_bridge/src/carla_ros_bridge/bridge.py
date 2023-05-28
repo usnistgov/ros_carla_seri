@@ -13,6 +13,8 @@ Class that handle communication between CARLA and ROS
 
 import os
 import sys
+from distutils.version import LooseVersion
+from threading import Thread, Lock, Event
 import yaml
 import pkg_resources
 from launch_ros.substitutions import FindPackageShare
@@ -20,8 +22,6 @@ try:
     import queue
 except ImportError:
     import Queue as queue
-from distutils.version import LooseVersion
-from threading import Thread, Lock, Event
 import carla
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
