@@ -1,17 +1,15 @@
 SERI Automated Vehicles
 ========================
 
-Welcome to ARIAC 2023!
-
 
 .. Hidden TOCs
-
 .. toctree::
-   :caption: ⏩ Getting Started
-   :maxdepth: 3
+   :caption: ⏩ Table of Contents
+   :maxdepth: 2
    :hidden:
 
-   getting_started/updates.rst
+   api/api.rst
+   api/commander_interface.rst
 
 .. toctree::
    :caption: ⏩ Python API
@@ -19,6 +17,4 @@ Welcome to ARIAC 2023!
    :hidden:
 
    api/api.rst
-
-:doc:`api/commander_interface`
-    Documentation for sample-function
+   api/commander_interface.rst
