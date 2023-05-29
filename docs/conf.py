@@ -156,6 +156,7 @@ html_js_files = [
     'js/custom.js'
 ]
 
+autoapi_dirs = ['../commander_py']
 
 # -- Options for copy button -------------------------------------------------------
 #
@@ -170,4 +171,3 @@ numfig = True
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
 
-sys.path.insert(0, os.path.abspath('../commander_py'))
