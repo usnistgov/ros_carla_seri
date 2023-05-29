@@ -2,4 +2,6 @@
 commander_interface
 -------------------
 
-autoapi/commander_py/commander_interface/index
+.. toctree::
+    
+    autoapi/commander_py/commander_interface/index
