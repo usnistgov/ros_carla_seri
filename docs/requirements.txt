@@ -1,0 +1,8 @@
+myst_parser
+sphinx_copybutton
+sphinxcontrib_inlinesyntaxhighlight
+sphinxemoji
+sphinx-hoverxref
+sphinx-autoapi
+
+# docutils<0.17

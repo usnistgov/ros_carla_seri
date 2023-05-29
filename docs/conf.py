@@ -16,21 +16,41 @@ version = '0.1.0'
 # -- General configuration
 
 extensions = [
-    'hoverxref.extension',
-    "sphinx_design",
-    'myst_parser',
-    'sphinx.ext.mathjax',
-    'sphinx_rtd_theme',
-    'sphinx.ext.autosectionlabel',
-    'sphinx.ext.todo',
+    # Sphinx's own extensions
+    "sphinx.ext.autodoc",
+    "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.todo",
+    "sphinx.ext.viewcode",
+    # Our custom extension, only meant for Furo's own documentation.
+    "furo.sphinxext",
+    # External stuff
     'sphinx.ext.autodoc',
     'autoapi.extension',
-    # External stuff
     "myst_parser",
     "sphinx_copybutton",
-    'sphinx.ext.intersphinx',
-    'sphinxemoji.sphinxemoji'
+    "sphinx_design",
+    "sphinx_inline_tabs",
 ]
+
+
+# extensions = [
+#     'hoverxref.extension',
+#     "sphinx_design",
+#     'myst_parser',
+#     'sphinx.ext.mathjax',
+#     'sphinx_rtd_theme',
+#     'sphinx.ext.autosectionlabel',
+#     'sphinx.ext.todo',
+#     'sphinx.ext.autodoc',
+#     'autoapi.extension',
+#     # External stuff
+#     "myst_parser",
+#     "sphinx_copybutton",
+#     'sphinx.ext.intersphinx',
+#     'sphinxemoji.sphinxemoji'
+# ]
 
 
 # use language set by highlight directive if no language is set by role
