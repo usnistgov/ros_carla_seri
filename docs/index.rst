@@ -5,12 +5,16 @@ SERI Automated Vehicles
 .. Hidden TOCs
 
 .. toctree::
+   :caption: ⏩ collision_checker
    autoapi/commander_py/collision_checker/index
 
-
 .. toctree::
-   :caption: ⏩ Python API
-   :maxdepth: 3
-   :hidden:
+   :caption: ⏩ collision_checker
+   autoapi/commander_py/commander_interface/index
 
-   api/commander_interface.rst
+.. .. toctree::
+..    :caption: ⏩ Python API
+..    :maxdepth: 3
+..    :hidden:
+
+..    api/commander_interface.rst
