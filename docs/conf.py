@@ -17,6 +17,7 @@ version = '0.1.0'
 
 extensions = [
     'hoverxref.extension',
+    "sphinx_design",
     'myst_parser',
     'sphinx.ext.mathjax',
     'sphinx_rtd_theme',
