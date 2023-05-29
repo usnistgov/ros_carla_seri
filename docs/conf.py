@@ -40,6 +40,7 @@ extensions = [
     "sphinx_inline_tabs",
     'sphinxemoji.sphinxemoji',
     'sphinx.ext.graphviz',
+    'autoapi.extension',
     'sphinx.ext.inheritance_diagram'
 ]
 
@@ -198,19 +199,19 @@ html_js_files = [
     'js/custom.js'
 ]
 
-# autoapi_type = 'python'
-# autoapi_dirs = ['../commander_py']
-# autoapi_generate_api_docs = True
-# autoapi_add_toctree_entry = False
-# autoapi_options = [
-#     "members",
-#     "undoc-members",
-#     "show-inheritance",
-#     "show-module-summary",
-#     "imported-members",
-# ]
-# autoapi_keep_files = False
-# autodoc_typehints = "description"
+autoapi_type = 'python'
+autoapi_dirs = ['../commander_py/commander_py']
+autoapi_generate_api_docs = True
+autoapi_add_toctree_entry = True
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "imported-members",
+]
+autoapi_keep_files = False
+autodoc_typehints = "description"
 
 # -- Options for copy button -------------------------------------------------------
 #
