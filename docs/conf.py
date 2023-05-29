@@ -22,6 +22,7 @@ extensions = [
     'sphinx_rtd_theme',
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',
+    'sphinx.ext.autodoc',
     'autoapi.extension',
     # External stuff
     "myst_parser",

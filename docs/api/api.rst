@@ -10,10 +10,19 @@ API documentation and generated content
 
 .. only:: python3
 
-    .. automodule:: commander_py.commander_interface
-        :members:
-        :private-members:
-        :special-members:
+    .. autoapimodule:: 
+    
+    .. autoapiclass:: 
+    
+    .. autoapiexception::
+
+    .. autoapifunction:: 
+    
+    .. autoapidata:: 
+    
+    .. autoapimethod:: 
+    
+    .. autoapiattribute::
 
 
         
