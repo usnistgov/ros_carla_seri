@@ -1,7 +1,12 @@
 SERI Automated Vehicles
 ========================
 
-|build-status| |docs| |coverage|
+|docs|
+
+.. |docs| image:: https://readthedocs.org/projects/ros-carla-seri/badge/?version=latest&style=plastic
+    :alt: Documentation Status
+    :scale: 100%
+    :target: https://readthedocs.org/projects/ros-carla-seri/badge/?version=latest&style=plastic
 
 .. https://readthedocs.org/projects/ros-carla-seri/badge/?version=latest&style=plastic
 
