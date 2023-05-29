@@ -5,7 +5,7 @@ import os
 
 # -- Project information
 
-project = 'SERI Automated Vehicles'
+project = 'SERI AV'
 copyright = 'NIST'
 author = 'Zeid Kootbally'
 
