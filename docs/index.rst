@@ -2,18 +2,18 @@ SERI Automated Vehicles
 ========================
 
 
-.. Hidden TOCs
-
-.. .. toctree::
-..    autoapi/commander_py/collision_checker/index
-
-.. .. toctree::
-..    api/commander_interface.rst
+Github Repository: `https://github.com/usnistgov/ros_carla_seri <https://github.com/usnistgov/ros_carla_seri>`_
    
+.. toctree::
+   :caption: ⏩ Itroduction
+   :maxdepth: 3
+   :hidden:
+
+   general/introduction.rst
 
 .. toctree::
    :caption: ⏩ Installation Guide
    :maxdepth: 3
    :hidden:
 
-   installation/installation.rst
+   general/installation.rst
