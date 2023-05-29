@@ -15,6 +15,7 @@
 from ament_flake8.main import main_with_errors
 import pytest
 
+__all__ = ()
 
 @pytest.mark.flake8
 @pytest.mark.linter

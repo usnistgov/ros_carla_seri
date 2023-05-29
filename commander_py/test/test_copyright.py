@@ -15,6 +15,7 @@
 from ament_copyright.main import main
 import pytest
 
+__all__ = ()
 
 @pytest.mark.copyright
 @pytest.mark.linter

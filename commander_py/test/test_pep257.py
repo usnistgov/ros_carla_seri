@@ -15,6 +15,7 @@
 from ament_pep257.main import main
 import pytest
 
+__all__ = ()
 
 @pytest.mark.linter
 @pytest.mark.pep257
