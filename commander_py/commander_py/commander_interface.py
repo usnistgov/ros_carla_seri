@@ -1,6 +1,11 @@
 
 '''
-Node to command the ego vehicle
+Node to command two vehicles: A leader and a follower.
+
+- The leader and the follower go through different waypoints. 
+    - Waypoints for the leader are located in ros_bridge/carla_common/config/waypoints_leader.txt.
+    - Waypoints for the follower are located in ros_bridge/carla_common/config/waypoints_follower.txt.
+- Once the follower reaches the leader, it will decrease its speed to keep a safe distance from the leader.
 '''
 
 # R0902: too-many-instance-attributes
@@ -14,7 +19,6 @@ Node to command the ego vehicle
 import os
 import sys
 import csv
-import math
 import numpy as np
 import yaml
 import tf_transformations
