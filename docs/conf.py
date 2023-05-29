@@ -1,7 +1,7 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+# sys.path.insert(0, os.path.abspath('..'))
 
 # Configuration file for the Sphinx documentation builder.
 
@@ -46,7 +46,7 @@ extensions = [
 
 autodoc_default_options = {"autosummary": True}
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
+# templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
