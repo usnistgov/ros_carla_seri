@@ -34,7 +34,9 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
-    'sphinxemoji.sphinxemoji'
+    'sphinxemoji.sphinxemoji',
+    'sphinx.ext.graphviz',
+    'sphinx.ext.inheritance_diagram'
 ]
 
 

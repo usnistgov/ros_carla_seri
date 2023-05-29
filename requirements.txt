@@ -8,5 +8,6 @@ sphinx-design
 sphinx-inline-tabs
 sphinx-tabs
 furo
+graphviz
 
 # docutils<0.17
