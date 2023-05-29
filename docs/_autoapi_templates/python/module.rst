@@ -55,7 +55,7 @@ Submodules
 {% set visible_children = obj.children|selectattr("display")|rejectattr("imported")|list %}
 {% endif %}
 {% if visible_children %}
-{{ obj.name|title }}
+{{ obj.name}}
 {{ "-" * obj.type|length }}---------
 
 {% set visible_classes = visible_children|selectattr("type", "equalto", "class")|list %}
