@@ -59,6 +59,9 @@ class VehicleCommanderInterface(Node):
 
     Raises:
         KeyboardInterrupt: Exception raised when the user uses Ctrl+C to kill a process
+
+    Attributes:
+        _timer_group     Callback group for the timer.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
