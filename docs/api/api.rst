@@ -1,15 +1,22 @@
 ***************************************
-API documentation and generated content
+API documentation
 ***************************************
 
-
-.. contents:: Table of Contents
+commander_py package
+==================
 
 .. automodule:: commander_py
    :members:
 
 
 
+commander_py.commander_interface module
+------------------------------
+
+.. automodule:: commander_py.commander_interface
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
         
 
