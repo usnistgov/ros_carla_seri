@@ -1,6 +1,0 @@
-:py:mod:`test_flake8`
-=====================
-
-.. py:module:: test_flake8
-
-

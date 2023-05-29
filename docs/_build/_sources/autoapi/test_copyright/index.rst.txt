@@ -1,6 +1,0 @@
-:py:mod:`test_copyright`
-========================
-
-.. py:module:: test_copyright
-
-

@@ -211,6 +211,7 @@ autoapi_options = [
     "show-module-summary",
     "imported-members",
 ]
+autoapi_template_dir = '_autoapi_templates'
 autoapi_keep_files = False
 autodoc_typehints = "description"
 

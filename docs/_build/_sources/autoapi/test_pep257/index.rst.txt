@@ -1,6 +1,0 @@
-:py:mod:`test_pep257`
-=====================
-
-.. py:module:: test_pep257
-
-
