@@ -33,7 +33,6 @@ extensions = [
     "furo.sphinxext",
     'hoverxref.extension',
     # External stuff
-    'autoapi.extension',
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
@@ -187,19 +186,19 @@ html_js_files = [
     'js/custom.js'
 ]
 
-autoapi_type = 'python'
-autoapi_dirs = ['../commander_py']
-autoapi_generate_api_docs = True
-autoapi_add_toctree_entry = False
-autoapi_options = [
-    "members",
-    "undoc-members",
-    "show-inheritance",
-    "show-module-summary",
-    "imported-members",
-]
-autoapi_keep_files = False
-autodoc_typehints = "description"
+# autoapi_type = 'python'
+# autoapi_dirs = ['../commander_py']
+# autoapi_generate_api_docs = True
+# autoapi_add_toctree_entry = False
+# autoapi_options = [
+#     "members",
+#     "undoc-members",
+#     "show-inheritance",
+#     "show-module-summary",
+#     "imported-members",
+# ]
+# autoapi_keep_files = False
+# autodoc_typehints = "description"
 
 # -- Options for copy button -------------------------------------------------------
 #
