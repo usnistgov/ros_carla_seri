@@ -5,7 +5,7 @@ API documentation
 commander_py.commander_interface module
 ---------------------------------------
 
-.. autoapimodule:: commander_py.commander_interface
+.. autoapimodule:: 
     :autoapidata:
     :autoapimethod:
     :autoapiattribute:
