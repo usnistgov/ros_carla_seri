@@ -187,6 +187,15 @@ autoapi_type = 'python'
 autoapi_dirs = ['../commander_py']
 autoapi_generate_api_docs = False
 autoapi_add_toctree_entry = True
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "imported-members",
+]
+autoapi_keep_files = True
+autodoc_typehints = "description"
 
 # -- Options for copy button -------------------------------------------------------
 #

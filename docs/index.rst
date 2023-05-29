@@ -21,6 +21,9 @@ Welcome to ARIAC 2023!
    :maxdepth: 3
    :hidden:
 
+   ...
+   autoapi/index
+
    api/api.rst
 ..    competition/overview
 ..    competition/environment
