@@ -26,6 +26,7 @@ extensions = [
     'sphinx.ext.coverage',
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
+    'autodocsumm',
     'sphinx_rtd_theme',
     "sphinx.ext.viewcode",
     'sphinx.ext.autosectionlabel',
