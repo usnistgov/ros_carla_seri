@@ -2,7 +2,7 @@
 API documentation
 ***************************************
 
-.. autoapimodule:: 
+.. autoapimodule:: commander_py
     :autoapidata:
     :autoapimethod:
     :autoapiattribute:
