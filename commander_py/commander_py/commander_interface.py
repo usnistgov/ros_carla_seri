@@ -62,6 +62,7 @@ class VehicleCommanderInterface(Node):
 
     Attributes:
         _timer_group     Callback group for the timer.
+        _subscription_group     Callback group for all subscribers.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
@@ -96,8 +97,8 @@ class VehicleCommanderInterface(Node):
         #############################################
         # Callback groups
         #############################################
-        timer_group = MutuallyExclusiveCallbackGroup()
-        subscription_group = MutuallyExclusiveCallbackGroup()
+        _timer_group = MutuallyExclusiveCallbackGroup()
+        _subscription_group = MutuallyExclusiveCallbackGroup()
 
         #############################################
         # Follower
@@ -108,10 +109,10 @@ class VehicleCommanderInterface(Node):
                                  '/carla/ego_vehicle/vehicle_status',
                                  self._follower_status_cb,
                                  10,
-                                 callback_group=subscription_group)
+                                 callback_group=_subscription_group)
 
         self.create_subscription(Odometry, '/carla/ego_vehicle/odometry',
-                                 self._follower_odometry_cb, 10, callback_group=subscription_group)
+                                 self._follower_odometry_cb, 10, callback_group=_subscription_group)
 
         self._follower_current_velocity = 0
         self._follower_current_x = 0
@@ -136,10 +137,10 @@ class VehicleCommanderInterface(Node):
                                  '/carla/hero/vehicle_status',
                                  self._leader_status_cb,
                                  10,
-                                 callback_group=subscription_group)
+                                 callback_group=_subscription_group)
 
         self.create_subscription(Odometry, '/carla/hero/odometry',
-                                 self._leader_odometry_cb, 10, callback_group=subscription_group)
+                                 self._leader_odometry_cb, 10, callback_group=_subscription_group)
 
         self._leader_current_velocity = 0
         self._leader_current_x = 0
@@ -165,16 +166,16 @@ class VehicleCommanderInterface(Node):
         # Simulation time
         #############################################
         self.create_subscription(Clock, '/clock',
-                                 self._clock_cb, 10, callback_group=subscription_group)
+                                 self._clock_cb, 10, callback_group=_subscription_group)
         self._current_time = 0
 
         #############################################
         # timer
         #############################################
         # self._vehicle_action_timer = self.create_timer(1, self._vehicle_action_timer_callback,
-        #  callback_group=timer_group)
+        #  callback_group=_timer_group)
         self._waypoint_follower_timer = self.create_timer(0.5, self._waypoint_follower_cb,
-                                                          callback_group=timer_group)
+                                                          callback_group=_timer_group)
 
         # seri.yaml
         pkg_share = FindPackageShare(package='carla_common').find('carla_common')
