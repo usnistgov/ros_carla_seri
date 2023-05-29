@@ -42,6 +42,7 @@ __version__ = "1.0.1"
 __maintainer__ = "Zeid Kootbally"
 __email__ = "zeid.kootbally@nist.gov"
 __status__ = "Development"
+__all__ = ('VehicleCommanderInterface')
 # ===============================================================
 
 

@@ -7,6 +7,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from commander_py.commander_interface import VehicleCommanderInterface
 
+__all__ = ()
 
 def main(args=None):
     '''
