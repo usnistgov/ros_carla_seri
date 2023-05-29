@@ -2,11 +2,6 @@
 API Reference
 -------------
 
-.. automodule:: commander_py.commander_py.commander_interface.VehicleCommanderInterface
-    :autosummary:
+.. toctree::
 
-.. automodule:: commander_py.commander_interface.VehicleCommanderInterface
-    :autosummary:
-
-.. automodule:: commander_interface.VehicleCommanderInterface
-    :autosummary:
+    autoapi/commander_py/collision_checker/index

@@ -83,6 +83,7 @@ inline_highlight_literals = False
 todo_include_todos = True
 
 templates_path = ['_templates']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'changes/*.rst']
 
 # Make sure the target is unique
 autosectionlabel_prefix_document = True
@@ -202,7 +203,7 @@ html_js_files = [
 autoapi_type = 'python'
 autoapi_dirs = ['../commander_py/commander_py']
 autoapi_generate_api_docs = True
-autoapi_add_toctree_entry = True
+autoapi_add_toctree_entry = False
 autoapi_options = [
     "members",
     "undoc-members",
