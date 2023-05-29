@@ -4,5 +4,6 @@ sphinxcontrib_inlinesyntaxhighlight
 sphinxemoji
 sphinx-hoverxref
 sphinx-autoapi
+furo
 
 # docutils<0.17
