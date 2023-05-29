@@ -2,7 +2,7 @@
 API documentation
 ***************************************
 
-.. automodule:: commander_interface
+.. automodule:: commander_py.commander_py.commander_interface
     :members:
 
         
