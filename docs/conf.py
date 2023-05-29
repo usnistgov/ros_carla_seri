@@ -192,6 +192,7 @@ rst_prolog = """
 
 source_suffix = ['.rst', '.md']
 html_static_path = ['custom']
+html_title = 'SERI Automated Vehicle'
 html_css_files = [
     'css/custom.css',
     'css/hack.css',
