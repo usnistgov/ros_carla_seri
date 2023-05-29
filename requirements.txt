@@ -4,5 +4,8 @@ sphinxcontrib_inlinesyntaxhighlight
 sphinxemoji
 sphinx-hoverxref
 sphinx-autoapi
+sphinx-design
+sphinx-inline-tabs
+sphinx-tabs
 
 # docutils<0.17
