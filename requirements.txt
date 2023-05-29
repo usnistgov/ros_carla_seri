@@ -1,4 +1,4 @@
-myst_parser
+myst_parser # include markdown text
 sphinx_copybutton
 sphinxcontrib_inlinesyntaxhighlight
 sphinxemoji
@@ -9,5 +9,9 @@ sphinx-inline-tabs
 sphinx-tabs
 furo
 graphviz
+autodocsumm  # autodoc and autosummary
+docstr-coverage  # docstring coverage test
+sphinx
+sphinxcontrib-napoleon  # google and numpy docstring style
 
 # docutils<0.17
