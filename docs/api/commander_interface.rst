@@ -1,8 +1,5 @@
 
-API Reference
--------------
+commander_interface
+-------------------
 
-.. toctree::
-
-    autoapi/commander_py/collision_checker
-    autoapi/commander_py/collision_checker/index
+autoapi/commander_py/commander_interface/index

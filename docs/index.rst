@@ -8,7 +8,8 @@ SERI Automated Vehicles
    autoapi/commander_py/collision_checker/index
 
 .. toctree::
-   autoapi/commander_py/commander_interface/index
+   api/commander_interface.rst
+   
 
 .. .. toctree::
 ..    :caption: ⏩ Python API
