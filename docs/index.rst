@@ -1,11 +1,12 @@
 SERI Automated Vehicles
 ========================
 
+https://readthedocs.org/projects/ros_carla_seri/badge/?version=0.1.0&style=plastic
 
 Github Repository: `https://github.com/usnistgov/ros_carla_seri <https://github.com/usnistgov/ros_carla_seri>`_
    
 .. toctree::
-   :caption: ⏩ Itroduction
+   :caption: ⏩ Introduction
    :maxdepth: 3
    :hidden:
 
