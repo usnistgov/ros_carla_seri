@@ -55,6 +55,9 @@ class VehicleCommanderInterface(Node):
 
     Raises:
         KeyboardInterrupt: Exception raised when the user uses Ctrl+C to kill a process
+        
+    Attributes:
+        _timer_group     Callback group for the timer.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
@@ -89,7 +92,7 @@ class VehicleCommanderInterface(Node):
         #############################################
         # Callback groups
         #############################################
-        timer_group = MutuallyExclusiveCallbackGroup()
+        _timer_group = MutuallyExclusiveCallbackGroup()
         subscription_group = MutuallyExclusiveCallbackGroup()
 
         #############################################
@@ -165,9 +168,9 @@ class VehicleCommanderInterface(Node):
         # timer
         #############################################
         # self._vehicle_action_timer = self.create_timer(1, self._vehicle_action_timer_callback,
-        #  callback_group=timer_group)
+        #  callback_group=_timer_group)
         self._waypoint_follower_timer = self.create_timer(0.5, self._waypoint_follower_cb,
-                                                          callback_group=timer_group)
+                                                          callback_group=_timer_group)
 
         # seri.yaml
         pkg_share = FindPackageShare(package='carla_common').find('carla_common')
