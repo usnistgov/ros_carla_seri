@@ -34,6 +34,7 @@ from commander_py import (
 # import pygame
 # import carla
 
+
 # ===============================================================
 __author__ = "Zeid Kootbally"
 __credits__ = ["Zeid Kootbally"]
@@ -42,7 +43,6 @@ __version__ = "1.0.1"
 __maintainer__ = "Zeid Kootbally"
 __email__ = "zeid.kootbally@nist.gov"
 __status__ = "Development"
-__all__ = ('VehicleCommanderInterface')
 # ===============================================================
 
 

@@ -5,24 +5,12 @@ API documentation and generated content
 
 .. contents:: Table of Contents
 
-:mod:`commander_py`
-=====================
+.. automodule:: commander_py
+   :members:
 
-.. only:: python3
+.. autoclass:: VehicleCommanderInterface
+   :members:
 
-    .. autoapimodule:: 
-    
-    .. autoapiclass:: 
-    
-    .. autoapiexception::
-
-    .. autoapifunction:: 
-    
-    .. autoapidata:: 
-    
-    .. autoapimethod:: 
-    
-    .. autoapiattribute::
 
 
         
