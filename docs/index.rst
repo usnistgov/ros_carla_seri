@@ -19,3 +19,6 @@ Welcome to ARIAC 2023!
    :hidden:
 
    api/api.rst
+
+:doc:`api/commander_interface`
+    Documentation for sample-function
