@@ -184,7 +184,7 @@ html_js_files = [
 ]
 
 autoapi_type = 'python'
-autoapi_dirs = ['../commander_py']
+autoapi_dirs = ['../commander_py/commander_py']
 autoapi_generate_api_docs = False
 autoapi_add_toctree_entry = True
 autoapi_options = [
