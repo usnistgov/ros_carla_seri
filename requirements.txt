@@ -7,5 +7,6 @@ sphinx-autoapi
 sphinx-design
 sphinx-inline-tabs
 sphinx-tabs
+furo
 
 # docutils<0.17
