@@ -102,7 +102,7 @@ hoverxref_auto_ref = True
 
 
 sphinxemoji_style = 'twemoji'
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'tango'
@@ -157,6 +157,7 @@ html_js_files = [
     'js/custom.js'
 ]
 
+autoapi_type = 'python'
 autoapi_dirs = ['../commander_py']
 
 # -- Options for copy button -------------------------------------------------------
