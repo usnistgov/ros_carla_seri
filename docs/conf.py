@@ -22,16 +22,19 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
+    'sphinx_rtd_theme',
     "sphinx.ext.viewcode",
+    'sphinx.ext.autosectionlabel',
     # Our custom extension, only meant for Furo's own documentation.
     "furo.sphinxext",
+    'hoverxref.extension',
     # External stuff
-    'sphinx.ext.autodoc',
     'autoapi.extension',
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_inline_tabs",
+    'sphinxemoji.sphinxemoji'
 ]
 
 
@@ -180,7 +183,7 @@ html_js_files = [
 
 autoapi_type = 'python'
 autoapi_dirs = ['../commander_py']
-autoapi_generate_api_docs = True
+autoapi_generate_api_docs = False
 
 # -- Options for copy button -------------------------------------------------------
 #
