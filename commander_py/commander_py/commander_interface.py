@@ -622,7 +622,6 @@ class VehicleCommanderInterface(Node):
              self._follower_current_rot_y,
              self._follower_current_rot_z,
              self._follower_current_rot_w])[2]
-        
 
     def _leader_odometry_cb(self, msg: Odometry):
         '''
