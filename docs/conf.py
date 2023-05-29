@@ -1,5 +1,7 @@
-import sys
+
 import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
 
 # Configuration file for the Sphinx documentation builder.
 
@@ -19,7 +21,9 @@ extensions = [
     # Sphinx's own extensions
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
+    "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
+    'sphinx.ext.coverage',
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
     'sphinx_rtd_theme',
