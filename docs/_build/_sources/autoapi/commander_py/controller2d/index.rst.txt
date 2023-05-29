@@ -1,0 +1,56 @@
+:py:mod:`commander_py.controller2d`
+===================================
+
+.. py:module:: commander_py.controller2d
+
+.. autoapi-nested-parse::
+
+   2D Controller Class to be used for the CARLA waypoint follower demo.
+
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.controller2d.Controller2D
+
+
+
+
+.. py:class:: Controller2D(waypoints)
+
+   Bases: :py:obj:`object`
+
+   .. py:method:: update_values(x, y, yaw, speed, timestamp, frame)
+
+
+   .. py:method:: get_lookahead_index(lookahead_distance)
+
+
+   .. py:method:: update_desired_speed()
+
+
+   .. py:method:: update_waypoints(new_waypoints)
+
+
+   .. py:method:: get_commands()
+
+
+   .. py:method:: set_throttle(input_throttle)
+
+
+   .. py:method:: set_steer(input_steer_in_rad)
+
+
+   .. py:method:: set_brake(input_brake)
+
+
+   .. py:method:: update_controls()
+
+
+

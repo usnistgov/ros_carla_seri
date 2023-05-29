@@ -1,0 +1,123 @@
+:py:mod:`commander_py.path_optimizer`
+=====================================
+
+.. py:module:: commander_py.path_optimizer
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.path_optimizer.PathOptimizer
+
+
+
+
+.. py:class:: PathOptimizer
+
+   Class for path optimization
+
+   .. py:method:: optimize_spiral(xf, yf, tf)
+
+      Optimization function used for finding the optimization parameters.
+
+      Assumptions:
+          1. The first point in the spiral is in origin of the vehicle frame
+          2. Assumes that the curvature for the endpoints to be zero
+             (i.e. p0 and p3 are zero of the vector p = [p0, p1, p2, p3, sf])
+
+      args:
+          xf: Final x position (m) for the given goal state.
+          yf: Final y position (m) for the given goal state.
+          tf: Final yaw position (rad) for the given goal state.
+
+      returns:
+          spiral: The resulting optimized path that best fits the goal state.
+              The path is a list of points of the following format:
+                  [x_points, y_points, t_points]:
+                      x_points: List of x values (m) along the spiral
+                      y_points: List of y values (m) along the spiral
+                      z_points: List of yaw values (rad) along the spiral
+
+
+   .. py:method:: thetaf(a, b, c, d, s)
+
+      This function computes the theta values for a given list of 
+      arc lengths, and spiral parameters a, b, c, d.
+      Recall that the equation of a cubic spiral is
+      kappa(s) = a + b*s + c*s^2 + d*s^3
+      and since theta(s) is the integral of kappa(s) with respect to
+      arc length, then theta(s) = a*s + b/2*s^2 + c/3*s^3 + d/4*s^4.
+
+      TODO: Try to vectorize this function using numpy for speed, if you can.
+
+      Args:
+          a (list): the first term of kappa(s).
+          b (list): the second term of kappa(s).
+          c (list): the third term of kappa(s).
+          d (list): the fourth term of kappa(s).
+          s (list): spiral
+
+      Returns:
+          list: theta values for a given list of arc lengths, and spiral parameters a, b, c, d.
+
+
+   .. py:method:: sample_spiral(p)
+
+      Samples a set of points along the spiral given the optimization
+      parameters.
+
+      args:
+          p: The resulting optimization parameters that minimizes the
+              objective function given a goal state.
+              Format: [p1, p2, sf], Unit: [1/m, 1/m, m]
+              , where p1 and p2 are the curvatures at points p1 and p2
+                and sf is the final arc length for the spiral.
+      returns:
+          [x_points, y_points, t_points]:
+              x_points: List of x values (m) along the spiral
+              y_points: List of y values (m) along the spiral
+              t_points: List of yaw values (rad) along the spiral
+
+
+   .. py:method:: objective(p)
+
+      The optimizer can freely move 3 of the spiral parameter variables.
+      The other two are fixed due to boundary conditions.
+
+
+   .. py:method:: objective_grad(p)
+
+      The optimizer can freely move 3 of the spiral parameter variables.
+      The other two are fixed due to boundary conditions.
+
+
+   .. py:method:: fxf(p)
+
+
+   .. py:method:: fxf_grad(p)
+
+
+   .. py:method:: fyf(p)
+
+
+   .. py:method:: fyf_grad(p)
+
+
+   .. py:method:: ftf(p)
+
+
+   .. py:method:: ftf_grad(p)
+
+
+   .. py:method:: fbe(p)
+
+
+   .. py:method:: fbe_grad(p)
+
+
+

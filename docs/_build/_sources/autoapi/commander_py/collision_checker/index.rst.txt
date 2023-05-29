@@ -1,0 +1,82 @@
+:py:mod:`commander_py.collision_checker`
+========================================
+
+.. py:module:: commander_py.collision_checker
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.collision_checker.CollisionChecker
+
+
+
+
+.. py:class:: CollisionChecker(circle_offsets, circle_radii, weight)
+
+   Check possible collisions between the vehicle and obstacles.
+
+   .. py:method:: collision_check(paths, obstacles)
+
+      Returns a bool array on whether each path is collision free.
+
+      args:
+          paths: A list of paths in the global frame.  
+              A path is a list of points of the following format:
+                  [x_points, y_points, t_points]:
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith path, jth point's t value:
+                      paths[i][2][j]
+          obstacles: A list of [x, y] points that represent points along the
+              border of obstacles, in the global frame.
+              Format: [[x0, y0],
+                       [x1, y1],
+                       ...,
+                       [xn, yn]]
+              , where n is the number of obstacle points and units are [m, m]
+
+      returns:
+          collision_check_array: A list of boolean values which classifies
+              whether the path is collision-free (true), or not (false). The
+              ith index in the collision_check_array list corresponds to the
+              ith path in the paths list.
+
+
+   .. py:method:: select_best_path_index(paths, collision_check_array, goal_state)
+
+      Returns the path index which is best suited for the vehicle to
+      traverse.
+
+      Selects a path index which is closest to the center line as well as far
+      away from collision paths.
+
+      args:
+          paths: A list of paths in the global frame.  
+              A path is a list of points of the following format:
+                  [x_points, y_points, t_points]:
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith path, jth point's t value:
+                      paths[i][2][j]
+          collision_check_array: A list of boolean values which classifies
+              whether the path is collision-free (true), or not (false). The
+              ith index in the collision_check_array list corresponds to the
+              ith path in the paths list.
+          goal_state: Goal state for the vehicle to reach (centerline goal).
+              format: [x_goal, y_goal, v_goal], unit: [m, m, m/s]
+      useful variables:
+          self._weight: Weight that is multiplied to the best index score.
+      returns:
+          best_index: The path index which is best suited for the vehicle to
+              navigate with.
+
+
+

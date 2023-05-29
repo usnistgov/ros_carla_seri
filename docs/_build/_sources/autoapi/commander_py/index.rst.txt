@@ -1,0 +1,23 @@
+:py:mod:`commander_py`
+======================
+
+.. py:module:: commander_py
+
+
+Submodules
+----------
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   behavioral_planner/index.rst
+   collision_checker/index.rst
+   commander_interface/index.rst
+   commander_main/index.rst
+   controller2d/index.rst
+   cutils/index.rst
+   local_planner/index.rst
+   path_optimizer/index.rst
+   velocity_planner/index.rst
+
+

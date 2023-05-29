@@ -1,0 +1,233 @@
+:py:mod:`commander_py.velocity_planner`
+=======================================
+
+.. py:module:: commander_py.velocity_planner
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.velocity_planner.VelocityPlanner
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.velocity_planner.calc_distance
+   commander_py.velocity_planner.calc_final_speed
+
+
+
+.. py:class:: VelocityPlanner(time_gap, a_max, slow_speed, stop_line_buffer)
+
+   Class for a velocity planner.
+
+   .. py:method:: get_open_loop_speed(timestep)
+
+      Computes an open loop speed estimate based on the previously planned 
+      trajectory, and the timestep since the last planning cycle.
+
+      Args:
+          timestep (float): timestep is in seconds
+
+      Returns:
+          list: previous trajectory
+
+
+   .. py:method:: compute_velocity_profile(path, desired_speed, ego_state, closed_loop_speed, decelerate_to_stop, lead_car_state, follow_lead_vehicle)
+
+      Computes the velocity profile for the local planner path.
+
+      args:
+          path: Path (global frame) that the vehicle will follow.
+              Format: [x_points, y_points, t_points]
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith point's y value:
+                      paths[1][i]
+              It is assumed that the stop line is at the end of the path.
+          desired_speed: speed which the vehicle should reach (m/s)
+          ego_state: ego state vector for the vehicle, in the global frame.
+              format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
+                  ego_x and ego_y     : position (m)
+                  ego_yaw             : top-down orientation [-pi to pi]
+                  ego_open_loop_speed : open loop speed (m/s)
+          closed_loop_speed: current (closed-loop) speed for vehicle (m/s)
+          decelerate_to_stop: Flag where if true, should decelerate to stop
+          lead_car_state: the lead vehicle current state.
+              Format: [lead_car_x, lead_car_y, lead_car_speed]
+                  lead_car_x and lead_car_y   : position (m)
+                  lead_car_speed              : lead car speed (m/s)
+          follow_lead_vehicle: If true, the ego car should perform lead
+              vehicle handling, as the lead vehicle is close enough to
+              influence the speed profile of the local path.
+      internal parameters of interest:
+          self._slow_speed: coasting speed (m/s) of the vehicle before it 
+              comes to a stop
+          self._stop_line_buffer: buffer distance to stop line (m) for vehicle
+              to stop at
+          self._a_max: maximum acceleration/deceleration of the vehicle (m/s^2)
+          self._time_gap: Amount of time taken to reach the lead vehicle from
+              the current position
+      returns:
+          profile: Updated profile which contains the local path as well as
+              the speed to be tracked by the controller (global frame).
+              Length and speed in m and m/s.
+              Format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...,
+                       [xm, ym, vm]]
+              example:
+                  profile[2][1]: 
+                  returns the 3rd point's y position in the local path
+
+                  profile[5]:
+                  returns [x5, y5, v5] (6th point in the local path)
+
+
+   .. py:method:: decelerate_profile(path, start_speed)
+
+      Computes the velocity profile for the local path to decelerate to a
+      stop.
+
+      args:
+          path: Path (global frame) that the vehicle will follow.
+              Format: [x_points, y_points, t_points]
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith point's y value:
+                      paths[1][i]
+              It is assumed that the stop line is at the end of the path.
+          start_speed: speed which the vehicle starts with (m/s)
+      internal parameters of interest:
+          self._slow_speed: coasting speed (m/s) of the vehicle before it 
+              comes to a stop
+          self._stop_line_buffer: buffer distance to stop line (m) for vehicle
+              to stop at
+          self._a_max: maximum acceleration/deceleration of the vehicle (m/s^2)
+      returns:
+          profile: deceleration profile which contains the local path as well
+              as the speed to be tracked by the controller (global frame).
+              Length and speed in m and m/s.
+              Format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...,
+                       [xm, ym, vm]]
+              example:
+                  profile[2][1]: 
+                  returns the 3rd point's y position in the local path
+
+                  profile[5]:
+                  returns [x5, y5, v5] (6th point in the local path)
+
+
+   .. py:method:: follow_profile(path, start_speed, desired_speed, lead_car_state)
+
+      Computes the velocity profile for following a lead vehicle.
+
+      args:
+          path: Path (global frame) that the vehicle will follow.
+              Format: [x_points, y_points, t_points]
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith point's y value:
+                      paths[1][i]
+              It is assumed that the stop line is at the end of the path.
+          start_speed: speed which the vehicle starts with (m/s)
+          desired_speed: speed which the vehicle should reach (m/s)
+          lead_car_state: the lead vehicle current state.
+              Format: [lead_car_x, lead_car_y, lead_car_speed]
+                  lead_car_x and lead_car_y   : position (m)
+                  lead_car_speed              : lead car speed (m/s)
+      internal parameters of interest:
+          self._a_max: maximum acceleration/deceleration of the vehicle (m/s^2)
+          self._time_gap: Amount of time taken to reach the lead vehicle from
+              the current position
+      returns:
+          profile: Updated follow vehicle profile which contains the local
+              path as well as the speed to be tracked by the controller 
+              (global frame).
+              Length and speed in m and m/s.
+              Format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...,
+                       [xm, ym, vm]]
+              example:
+                  profile[2][1]: 
+                  returns the 3rd point's y position in the local path
+
+                  profile[5]:
+                  returns [x5, y5, v5] (6th point in the local path)
+
+
+   .. py:method:: nominal_profile(path, start_speed, desired_speed)
+
+      Computes the velocity profile for the local planner path in a normal
+      speed tracking case.
+
+      args:
+          path: Path (global frame) that the vehicle will follow.
+              Format: [x_points, y_points, t_points]
+                      x_points: List of x values (m)
+                      y_points: List of y values (m)
+                      t_points: List of yaw values (rad)
+                  Example of accessing the ith point's y value:
+                      paths[1][i]
+              It is assumed that the stop line is at the end of the path.
+          desired_speed: speed which the vehicle should reach (m/s)
+      internal parameters of interest:
+          self._a_max: maximum acceleration/deceleration of the vehicle (m/s^2)
+      returns:
+          profile: Updated nominal speed profile which contains the local path
+              as well as the speed to be tracked by the controller (global frame).
+              Length and speed in m and m/s.
+              Format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...,
+                       [xm, ym, vm]]
+              example:
+                  profile[2][1]: 
+                  returns the 3rd point's y position in the local path
+
+                  profile[5]:
+                  returns [x5, y5, v5] (6th point in the local path)
+
+
+
+.. py:function:: calc_distance(v_i, v_f, a)
+
+   Computes the distance given an initial and final speed, with a constant
+   acceleration.
+
+   args:
+       v_i: initial speed (m/s)
+       v_f: final speed (m/s)
+       a: acceleration (m/s^2)
+   returns:
+       distance: the final distance (m)
+
+
+.. py:function:: calc_final_speed(v_i, a, d)
+
+   Computes the final speed given an initial speed, distance travelled, 
+   and a constant acceleration.
+
+   args:
+       v_i: initial speed (m/s)
+       a: acceleration (m/s^2)
+       d: distance to be travelled (m)
+   returns:
+       v_f: the final speed (m/s)
+
+

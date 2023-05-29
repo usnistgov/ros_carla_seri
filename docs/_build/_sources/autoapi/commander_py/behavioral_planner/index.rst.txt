@@ -1,0 +1,234 @@
+:py:mod:`commander_py.behavioral_planner`
+=========================================
+
+.. py:module:: commander_py.behavioral_planner
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.behavioral_planner.BehaviouralPlanner
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.behavioral_planner.get_closest_index
+   commander_py.behavioral_planner.pointOnSegment
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   commander_py.behavioral_planner.FOLLOW_LANE
+   commander_py.behavioral_planner.DECELERATE_TO_STOP
+   commander_py.behavioral_planner.STAY_STOPPED
+   commander_py.behavioral_planner.STOP_THRESHOLD
+   commander_py.behavioral_planner.STOP_COUNTS
+
+
+.. py:data:: FOLLOW_LANE
+   :value: 0
+
+   
+
+.. py:data:: DECELERATE_TO_STOP
+   :value: 1
+
+   
+
+.. py:data:: STAY_STOPPED
+   :value: 2
+
+   
+
+.. py:data:: STOP_THRESHOLD
+   :value: 0.02
+
+   
+
+.. py:data:: STOP_COUNTS
+   :value: 10
+
+   
+
+.. py:class:: BehaviouralPlanner(lookahead, stopsign_fences, lead_vehicle_lookahead)
+
+   .. py:method:: set_lookahead(lookahead)
+
+
+   .. py:method:: transition_state(waypoints, ego_state, closed_loop_speed)
+
+      Handles state transitions and computes the goal state.  
+
+      args:
+          waypoints: current waypoints to track (global frame). 
+              length and speed in m and m/s.
+              (includes speed to track at each x,y location.)
+              format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...
+                       [xn, yn, vn]]
+              example:
+                  waypoints[2][1]: 
+                  returns the 3rd waypoint's y position
+
+                  waypoints[5]:
+                  returns [x5, y5, v5] (6th waypoint)
+          ego_state: ego state vector for the vehicle. (global frame)
+              format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
+                  ego_x and ego_y     : position (m)
+                  ego_yaw             : top-down orientation [-pi to pi]
+                  ego_open_loop_speed : open loop speed (m/s)
+          closed_loop_speed: current (closed-loop) speed for vehicle (m/s)
+      variables to set:
+          self._goal_index: Goal index for the vehicle to reach
+              i.e. waypoints[self._goal_index] gives the goal waypoint
+          self._goal_state: Goal state for the vehicle to reach (global frame)
+              format: [x_goal, y_goal, v_goal]
+          self._state: The current state of the vehicle.
+              available states: 
+                  FOLLOW_LANE         : Follow the global waypoints (lane).
+                  DECELERATE_TO_STOP  : Decelerate to stop.
+                  STAY_STOPPED        : Stay stopped.
+          self._stop_count: Counter used to count the number of cycles which
+              the vehicle was in the STAY_STOPPED state so far.
+      useful_constants:
+          STOP_THRESHOLD  : Stop speed threshold (m). The vehicle should fully
+                            stop when its speed falls within this threshold.
+          STOP_COUNTS     : Number of cycles (simulation iterations) 
+                            before moving from stop sign.
+
+
+   .. py:method:: get_goal_index(waypoints, ego_state, closest_len, closest_index)
+
+      Gets the goal index for the vehicle. 
+
+      Set to be the earliest waypoint that has accumulated arc length
+      accumulated arc length (including closest_len) that is greater than or
+      equal to self._lookahead.
+
+      args:
+          waypoints: current waypoints to track. (global frame)
+              length and speed in m and m/s.
+              (includes speed to track at each x,y location.)
+              format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...
+                       [xn, yn, vn]]
+              example:
+                  waypoints[2][1]: 
+                  returns the 3rd waypoint's y position
+
+                  waypoints[5]:
+                  returns [x5, y5, v5] (6th waypoint)
+          ego_state: ego state vector for the vehicle. (global frame)
+              format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
+                  ego_x and ego_y     : position (m)
+                  ego_yaw             : top-down orientation [-pi to pi]
+                  ego_open_loop_speed : open loop speed (m/s)
+          closest_len: length (m) to the closest waypoint from the vehicle.
+          closest_index: index of the waypoint which is closest to the vehicle.
+              i.e. waypoints[closest_index] gives the waypoint closest to the vehicle.
+      returns:
+          wp_index: Goal index for the vehicle to reach
+              i.e. waypoints[wp_index] gives the goal waypoint
+
+
+   .. py:method:: check_for_stop_signs(waypoints, closest_index, goal_index)
+
+      Checks for a stop sign that is intervening the goal path.
+
+      Checks for a stop sign that is intervening the goal path. Returns a new
+      goal index (the current goal index is obstructed by a stop line), and a
+      boolean flag indicating if a stop sign obstruction was found.
+
+      args:
+          waypoints: current waypoints to track. (global frame)
+              length and speed in m and m/s.
+              (includes speed to track at each x,y location.)
+              format: [[x0, y0, v0],
+                       [x1, y1, v1],
+                       ...
+                       [xn, yn, vn]]
+              example:
+                  waypoints[2][1]: 
+                  returns the 3rd waypoint's y position
+
+                  waypoints[5]:
+                  returns [x5, y5, v5] (6th waypoint)
+              closest_index: index of the waypoint which is closest to the vehicle.
+                  i.e. waypoints[closest_index] gives the waypoint closest to the vehicle.
+              goal_index (current): Current goal index for the vehicle to reach
+                  i.e. waypoints[goal_index] gives the goal waypoint
+      variables to set:
+          [goal_index (updated), stop_sign_found]: 
+              goal_index (updated): Updated goal index for the vehicle to reach
+                  i.e. waypoints[goal_index] gives the goal waypoint
+              stop_sign_found: Boolean flag for whether a stop sign was found or not
+
+
+   .. py:method:: check_for_lead_vehicle(ego_state, lead_car_position)
+
+      Checks for lead vehicle within the proximity of the ego car, such
+      that the ego car should begin to follow the lead vehicle.
+
+      args:
+          ego_state: ego state vector for the vehicle. (global frame)
+              format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
+                  ego_x and ego_y     : position (m)
+                  ego_yaw             : top-down orientation [-pi to pi]
+                  ego_open_loop_speed : open loop speed (m/s)
+          lead_car_position: The [x, y] position of the lead vehicle.
+              Lengths are in meters, and it is in the global frame.
+      sets:
+          self._follow_lead_vehicle: Boolean flag on whether the ego vehicle
+              should follow (true) the lead car or not (false).
+
+
+
+.. py:function:: get_closest_index(waypoints, ego_state)
+
+   Gets closest index a given list of waypoints to the vehicle position.
+
+   args:
+       waypoints: current waypoints to track. (global frame)
+           length and speed in m and m/s.
+           (includes speed to track at each x,y location.)
+           format: [[x0, y0, v0],
+                    [x1, y1, v1],
+                    ...
+                    [xn, yn, vn]]
+           example:
+               waypoints[2][1]: 
+               returns the 3rd waypoint's y position
+
+               waypoints[5]:
+               returns [x5, y5, v5] (6th waypoint)
+       ego_state: ego state vector for the vehicle. (global frame)
+           format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
+               ego_x and ego_y     : position (m)
+               ego_yaw             : top-down orientation [-pi to pi]
+               ego_open_loop_speed : open loop speed (m/s)
+
+   returns:
+       [closest_len, closest_index]:
+           closest_len: length (m) to the closest waypoint from the vehicle.
+           closest_index: index of the waypoint which is closest to the vehicle.
+               i.e. waypoints[closest_index] gives the waypoint closest to the vehicle.
+
+
+.. py:function:: pointOnSegment(p1, p2, p3)
+
+

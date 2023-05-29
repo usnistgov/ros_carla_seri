@@ -1,0 +1,14 @@
+:py:mod:`setup`
+===============
+
+.. py:module:: setup
+
+
+Module Contents
+---------------
+
+.. py:data:: package_name
+   :value: 'commander_py'
+
+   
+
