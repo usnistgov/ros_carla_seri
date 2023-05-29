@@ -35,6 +35,8 @@ from commander_py import (
     local_planner,
     behavioral_planner
 )
+# import common functions
+from commander_py.common import read_yaml
 # import pygame
 # import carla
 
@@ -61,8 +63,18 @@ class VehicleCommanderInterface(Node):
         KeyboardInterrupt: Exception raised when the user uses Ctrl+C to kill a process
 
     Attributes:
-        _timer_group     Callback group for the timer.
-        _subscription_group     Callback group for all subscribers.
+        _timer_group                Callback group for the timer.
+        _subscription_group         Callback group for all subscribers.
+        _follower_current_velocity  Current velocity of the follower.
+        _follower_current_x         Current x position of the follower.
+        _follower_current_y         Current y position of the follower.
+        _follower_current_rot_x     Current x rotation of the follower.
+        _follower_current_rot_y     Current y rotation of the follower.
+        _follower_current_rot_z     Current z rotation of the follower.
+        _follower_current_rot_w     Current w rotation of the follower.
+        _follower_current_roll      Current roll of the follower.
+        _follower_current_pitch     Current pitch of the follower.
+        _follower_current_yaw       Current yaw of the follower.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
@@ -181,7 +193,7 @@ class VehicleCommanderInterface(Node):
         pkg_share = FindPackageShare(package='carla_common').find('carla_common')
         config_file_name = "seri.yaml"
         config_file_path = os.path.join(pkg_share, 'config', config_file_name)
-        self._yaml_data = self.read_yaml(config_file_path)
+        self._yaml_data = read_yaml(config_file_path)
 
         # waypoints.txt
         waypoints_file_name = "waypoints.txt"
@@ -485,21 +497,6 @@ class VehicleCommanderInterface(Node):
             if reached_the_end:
                 # stop the vehicle
                 self._send_follower_cmd(0.0, 0.0, 1.0)
-
-    def read_yaml(self, path):
-        '''
-        Method to read a yaml file
-
-        Args:
-            path (str): absolute path to the yaml file
-
-        '''
-        with open(path, "r", encoding="utf8") as stream:
-            try:
-                return yaml.safe_load(stream)
-            except yaml.YAMLError:
-                self.get_logger().error("Unable to read configuration file")
-                return {}
 
     def _get_waypoints(self):
         '''
