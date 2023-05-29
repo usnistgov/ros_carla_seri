@@ -8,8 +8,6 @@ API documentation and generated content
 .. automodule:: commander_py
    :members:
 
-.. autoclass:: VehicleCommanderInterface
-   :members:
 
 
 
