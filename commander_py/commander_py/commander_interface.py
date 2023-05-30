@@ -107,12 +107,12 @@ class VehicleCommanderInterface(Node):
         super().__init__('vehicle_commander')
 
         print("\N{cat} VehicleCommanderInterface Node has been initialised.")
-        
+
         #############################################
         # Time related variables
         #############################################
         self._current_time = 0.0
-        
+
         #############################################
         # Callback groups
         #############################################
@@ -227,14 +227,15 @@ class VehicleCommanderInterface(Node):
         # Follower
         # --------------------------------------------
         self._waypoints_follower_file_name = "waypoints_follower.txt"
-        self._waypoints_follower_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_follower_file_name)
+        self._waypoints_follower_file_path = os.path.join(
+            carla_common_pkg, 'config', self._waypoints_follower_file_name)
         self._waypoints_follower_np = None
 
         self._get_waypoints()
 
         print(self._waypoints_leader_np.shape)
         print(self._waypoints_follower_np.shape)
-        
+
         # This will be used in callback functions to start following waypoint
         self._waypoints_acquired = True
 
@@ -258,17 +259,16 @@ class VehicleCommanderInterface(Node):
             self.get_logger().error(f"The file {self._waypoints_follower_file_path} does not exist.")
             sys.exit()
 
-    
     def _leader_follow_waypoints(self):
         '''
         Make both the leader and the follower follow the waypoints.
-        '''        
+        '''
         # Update the controller waypoint path with the best local path.
         # Linear interpolation computation on the waypoints
         # is also used to ensure a fine resolution between points.
-        
+
         wp_distance = []   # distance array
-        
+
         for i in range(1, self._waypoints_leader_np.shape[0]):
             distance = np.sqrt(
                 (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
@@ -276,8 +276,7 @@ class VehicleCommanderInterface(Node):
             wp_distance.append(distance)
             # last distance is 0 because it is the distance
             # from the last waypoint to the last waypoint
-            wp_distance.append(0)  
-            
+            wp_distance.append(0)
 
         # Linearly interpolate between waypoints and store in a list
         wp_interp = []    # interpolated values
@@ -300,8 +299,7 @@ class VehicleCommanderInterface(Node):
                 wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
         # add last waypoint at the end
         wp_interp.append(list(self._waypoints_leader_np[-1]))
-        
-    
+
     def run(self):
         '''
         Scenario Execution Loop
@@ -337,11 +335,11 @@ class VehicleCommanderInterface(Node):
         self._send_follower_cmd(0.0, 0.0, 1.0)
 
         # Store history
-        self._x_history.append(current_x)
-        self._y_history.append(current_y)
-        self._yaw_history.append(current_yaw)
-        self._speed_history.append(current_speed)
-        self._time_history.append(current_timestamp)
+        # self._x_history.append(current_x)
+        # self._y_history.append(current_y)
+        # self._yaw_history.append(current_yaw)
+        # self._speed_history.append(current_speed)
+        # self._time_history.append(current_timestamp)
 
         # Store collision history
         # collided_flag, prev_collision_vehicles, prev_collision_pedestrians, prev_collision_other = get_player_collided_flag(
