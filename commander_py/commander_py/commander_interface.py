@@ -258,6 +258,50 @@ class VehicleCommanderInterface(Node):
             self.get_logger().error(f"The file {self._waypoints_follower_file_path} does not exist.")
             sys.exit()
 
+    
+    def _leader_follow_waypoints(self):
+        '''
+        Make both the leader and the follower follow the waypoints.
+        '''        
+        # Update the controller waypoint path with the best local path.
+        # Linear interpolation computation on the waypoints
+        # is also used to ensure a fine resolution between points.
+        
+        wp_distance = []   # distance array
+        
+        for i in range(1, self._waypoints_leader_np.shape[0]):
+            distance = np.sqrt(
+                (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
+                (self._waypoints_leader_np[i, 1] - self._waypoints_leader_np[i - 1, 1]) ** 2)
+            wp_distance.append(distance)
+            # last distance is 0 because it is the distance
+            # from the last waypoint to the last waypoint
+            wp_distance.append(0)  
+            
+
+        # Linearly interpolate between waypoints and store in a list
+        wp_interp = []    # interpolated values
+        # (rows = waypoints, columns = [x, y, v])
+        for i in range(self._waypoints_leader_np.shape[0] - 1):
+            # Add original waypoint to interpolated waypoints list (and append
+            # it to the hash table)
+            wp_interp.append(list(self._waypoints_leader_np[i]))
+
+            # Interpolate to the next waypoint. First compute the number of
+            # points to interpolate based on the desired resolution and
+            # incrementally add interpolated points until the next waypoint
+            # is about to be reached.
+            num_pts_to_interp = int(np.floor(wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
+            wp_vector = self._waypoints_leader_np[i+1] - self._waypoints_leader_np[i]
+            wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
+
+            for j in range(num_pts_to_interp):
+                next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
+                wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
+        # add last waypoint at the end
+        wp_interp.append(list(self._waypoints_leader_np[-1]))
+        
+    
     def run(self):
         '''
         Scenario Execution Loop
