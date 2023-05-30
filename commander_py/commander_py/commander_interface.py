@@ -75,6 +75,7 @@ class VehicleCommanderInterface(Node):
         _follower_current_roll      Current roll of the follower.
         _follower_current_pitch     Current pitch of the follower.
         _follower_current_yaw       Current yaw of the follower.
+        _waypoints_acquired         Boolean to indicate if waypoints have been acquired.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
@@ -106,6 +107,12 @@ class VehicleCommanderInterface(Node):
         super().__init__('vehicle_commander')
 
         print("\N{cat} VehicleCommanderInterface Node has been initialised.")
+        
+        #############################################
+        # Time related variables
+        #############################################
+        self._current_time = 0.0
+        
         #############################################
         # Callback groups
         #############################################
@@ -190,14 +197,10 @@ class VehicleCommanderInterface(Node):
                                                           callback_group=_timer_group)
 
         # seri.yaml
-        pkg_share = FindPackageShare(package='carla_common').find('carla_common')
+        carla_common_pkg = FindPackageShare(package='carla_common').find('carla_common')
         config_file_name = "seri.yaml"
-        config_file_path = os.path.join(pkg_share, 'config', config_file_name)
+        config_file_path = os.path.join(carla_common_pkg, 'config', config_file_name)
         self._yaml_data = read_yaml(config_file_path)
-
-        # waypoints.txt
-        waypoints_file_name = "waypoints.txt"
-        self._waypoints_file_path = os.path.join(pkg_share, 'config', waypoints_file_name)
 
         #############################################
         # stop sign fences
@@ -212,88 +215,48 @@ class VehicleCommanderInterface(Node):
         self._get_parked_vehicle_boxes()
 
         #############################################
-        # waypoints
+        # Waypoints
         #############################################
-        self._waypoints_np = None
-        self._waypoints = None
+        self._waypoints_acquired = False
+        # Leader
+        # --------------------------------------------
+        self._waypoints_leader_file_name = "waypoints_leader.txt"
+        self._waypoints_leader_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_leader_file_name)
+        self._waypoints_leader_np = None
+
+        # Follower
+        # --------------------------------------------
+        self._waypoints_follower_file_name = "waypoints_follower.txt"
+        self._waypoints_follower_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_follower_file_name)
+        self._waypoints_follower_np = None
+
         self._get_waypoints()
 
-        #############################################
-        # Controller 2D Class Declaration
-        #############################################
-        # This is where we take the controller2d.py class
-        # and apply it to the simulator
-        self._controller = controller2d.Controller2D(self._waypoints)
+        print(self._waypoints_leader_np.shape)
+        print(self._waypoints_follower_np.shape)
+        
+        # This will be used in callback functions to start following waypoint
+        self._waypoints_acquired = True
 
-        #############################################
-        # Determine simulation average timestep (and total frames)
-        #############################################
-        # Ensure at least one frame is used to compute average timestep
-        num_iterations = self.ITER_FOR_SIM_TIMESTEP
-        if self.ITER_FOR_SIM_TIMESTEP < 1:
-            num_iterations = 1
+    def _get_waypoints(self):
+        '''
+        Get the waypoints for the leader and the follower.
+        '''
+        try:
+            with open(self._waypoints_leader_file_path, encoding="utf8") as stream:
+                csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+                self._waypoints_leader_np = np.array(csv_file)
+        except FileNotFoundError:
+            self.get_logger().error(f"The file {self._waypoints_leader_file_path} does not exist.")
+            sys.exit()
 
-        # Gather current data from the CARLA server. This is used to get the
-        # simulator starting game time. Note that we also need to
-        # send a command back to the CARLA server because synchronous mode
-        # is enabled.
-
-        sim_start_stamp = self._current_time
-        # # Send a control command to proceed to next iteration.
-        # # This mainly applies for simulations that are in synchronous mode.
-        self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
-
-        # Computes the average timestep based on several initial iterations
-        sim_duration = 0
-        for i in range(num_iterations):
-            # Gather current data
-            # Send a control command to proceed to next iteration
-            self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
-            # Last stamp
-            if i == num_iterations - 1:
-                sim_duration = self._current_time - sim_start_stamp
-
-        # # Outputs average simulation timestep and computes how many frames
-        # # will elapse before the simulation should end based on various
-        # # parameters that we set in the beginning.
-        # # SIMULATION_TIME_STEP = sim_duration / float(num_iterations)
-        # SIMULATION_TIME_STEP = 0.05
-
-        # print("SERVER SIMULATION STEP APPROXIMATION: " + str(SIMULATION_TIME_STEP))
-        # TOTAL_EPISODE_FRAMES = int(
-        #     (self.TOTAL_RUN_TIME + self.WAIT_TIME_BEFORE_START) / SIMULATION_TIME_STEP) + self.TOTAL_FRAME_BUFFER
-
-        #############################################
-        # Frame-by-Frame Iteration and Initialization
-        #############################################
-        # Store pose history starting from the start position
-        self._start_timestamp = self._current_time
-        self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
-        self._x_history = [self._follower_current_x]
-        self._y_history = [self._follower_current_y]
-        self._yaw_history = [self._follower_current_yaw]
-        self._time_history = [0]
-        self._speed_history = [0]
-        self._collided_flag_history = [False]  # assume player starts off non-collided
-
-        #############################################
-        # Local Planner Variables
-        #############################################
-        self._wp_goal_index = 0
-        self._local_waypoints = None
-        self._path_validity = np.zeros((self.NUM_PATHS, 1), dtype=bool)
-        self._local_planner = local_planner.LocalPlanner(self.NUM_PATHS,
-                                                         self.PATH_OFFSET,
-                                                         self.CIRCLE_OFFSETS,
-                                                         self.CIRCLE_RADII,
-                                                         self.PATH_SELECT_WEIGHT,
-                                                         self.TIME_GAP,
-                                                         self.A_MAX,
-                                                         self.SLOW_SPEED,
-                                                         self.STOP_LINE_BUFFER)
-        self._behavioral_planner = behavioral_planner.BehaviouralPlanner(self.BP_LOOKAHEAD_BASE,
-                                                                         self._stopsign_fences,
-                                                                         self.LEAD_VEHICLE_LOOKAHEAD)
+        try:
+            with open(self._waypoints_follower_file_path, encoding="utf8") as stream:
+                csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+                self._waypoints_follower_np = np.array(csv_file)
+        except FileNotFoundError:
+            self.get_logger().error(f"The file {self._waypoints_follower_file_path} does not exist.")
+            sys.exit()
 
     def run(self):
         '''
@@ -328,11 +291,6 @@ class VehicleCommanderInterface(Node):
 
         # Wait for some initial time before starting the demo
         self._send_follower_cmd(0.0, 0.0, 1.0)
-        # if current_timestamp <= self.WAIT_TIME_BEFORE_START:
-        #     self._send_follower_cmd(0.0, 0.0, 1.0)
-        #     continue
-        # else:
-        #     current_timestamp = current_timestamp - self.WAIT_TIME_BEFORE_START
 
         # Store history
         self._x_history.append(current_x)
@@ -498,20 +456,6 @@ class VehicleCommanderInterface(Node):
                 # stop the vehicle
                 self._send_follower_cmd(0.0, 0.0, 1.0)
 
-    def _get_waypoints(self):
-        '''
-        Get the waypoints from the waypoints.txt file
-        '''
-        try:
-            with open(self._waypoints_file_path, encoding="utf8") as stream:
-                self._waypoints = list(csv.reader(stream,
-                                                  delimiter=',',
-                                                  quoting=csv.QUOTE_NONNUMERIC))
-                self._waypoints_np = np.array(self._waypoints)
-        except FileNotFoundError:
-            self.get_logger().error(f"The file {self._waypoints_file_path} does not exist.")
-            sys.exit()
-
     def _get_parked_vehicle_boxes(self):
         parked_vehicles = None
         try:
@@ -576,7 +520,8 @@ class VehicleCommanderInterface(Node):
                 self._stopsign_fences.append([spos[0, 0], spos[1, 0], spos[0, 1], spos[1, 1]])
 
     def _waypoint_follower_cb(self):
-        self.run()
+        # self.run()
+        pass
 
     def _clock_cb(self, msg: Clock):
         '''
