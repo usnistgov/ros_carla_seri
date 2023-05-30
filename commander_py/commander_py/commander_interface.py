@@ -20,7 +20,6 @@ import os
 import sys
 import csv
 import numpy as np
-import yaml
 import tf_transformations
 # import rclpy
 from rclpy.node import Node
@@ -75,7 +74,7 @@ class VehicleCommanderInterface(Node):
         _follower_current_roll      Current roll of the follower.
         _follower_current_pitch     Current pitch of the follower.
         _follower_current_yaw       Current yaw of the follower.
-        _waypoints_acquired         Boolean to indicate if waypoints have been acquired.
+        _waypoints_acquired         Boolean to indicate if waypoints have been acquired from files.
     '''
 
     STOP_SIGN_FENCELENGTH = 5.0  # meters
