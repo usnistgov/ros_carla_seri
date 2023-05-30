@@ -61,7 +61,7 @@ objects:
   - type: 'sensor.pseudo.opendrive_map'
     id: 'map'
   # - type: 'vehicle.volkswagen.t2_2021'
-  - type: 'vehicle.lincoln.mkz_2017'
+  - type: 'vehicle.lincoln.mkz_2017' # Leader vehicle
     id: 'hero'
     spawn_point: {x: 300.0, y: -129.81, z: 3.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
     sensors:
@@ -75,7 +75,7 @@ objects:
         id: 'speedometer'
       - type: 'actor.pseudo.control'
         id: 'control'
-  - type: 'vehicle.tesla.model3'
+  - type: 'vehicle.tesla.model3' # Follower vehicle
     id: 'ego_vehicle'
     spawn_point: {x: 320.0, y: -129.81, z: 3.0, roll: 0.0, pitch: 0.0, yaw: 180.0}
     sensors:
