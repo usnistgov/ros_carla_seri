@@ -232,8 +232,8 @@ class VehicleCommanderInterface(Node):
 
         self._get_waypoints()
 
-        print(self._waypoints_leader_np.shape)
-        print(self._waypoints_follower_np.shape)
+        # print(self._waypoints_leader_np.shape)
+        # print(self._waypoints_follower_np.shape)
 
         # This will be used in callback functions to start following waypoint
         self._waypoints_acquired = True
