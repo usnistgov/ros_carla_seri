@@ -195,7 +195,7 @@ class VehicleCommanderInterface(Node):
         #############################################
         # self._vehicle_action_timer = self.create_timer(1, self._vehicle_action_timer_callback,
         #  callback_group=_timer_group)
-        self._waypoint_follower_timer = self.create_timer(0.5, self._waypoint_follower_cb,
+        self._run_leader_timer = self.create_timer(1.0, self._run_leader,
                                                           callback_group=_timer_group)
 
         # seri.yaml
@@ -350,10 +350,10 @@ class VehicleCommanderInterface(Node):
 
         # Send a control command to proceed to next iteration.
         # This mainly applies for simulations that are in synchronous mode.
-        self._send_leader_cmd(throttle=0.0, steer=0, brake=1.0)
+        self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
         
 
-    def run_leader(self):
+    def _run_leader(self):
         '''
         Function to run the leader vehicle in the timer loop
         '''
@@ -440,7 +440,7 @@ class VehicleCommanderInterface(Node):
         cmd_throttle, cmd_steer, cmd_brake = self._leader_controller.get_commands()
 
         # Output controller command to CARLA server
-        self._send_leader_cmd(throttle=cmd_throttle, steer=cmd_steer, brake=cmd_brake)
+        self._send_leader_cmd(throttle=float(cmd_throttle), steer=float(cmd_steer), brake=float(cmd_brake))
 
         # Find if reached the end of waypoint. If the car is within
         # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
@@ -519,9 +519,7 @@ class VehicleCommanderInterface(Node):
     #             spos = np.add(np.matmul(rotyaw, spos), spos_shift)
     #             self._stopsign_fences.append([spos[0, 0], spos[1, 0], spos[0, 1], spos[1, 1]])
 
-    def _waypoint_follower_cb(self):
-        # self.run()
-        pass
+
 
     def _clock_cb(self, msg: Clock):
         '''
@@ -531,7 +529,7 @@ class VehicleCommanderInterface(Node):
             msg (Clock): Clock message
         '''
         self._current_time = msg.clock.sec
-        self.get_logger().info(f'Current time: {self._current_time}', throttle_duration_sec=2)
+        # self.get_logger().info(f'Current time: {self._current_time}', throttle_duration_sec=2)
 
     def _follower_status_cb(self, msg: CarlaEgoVehicleStatus):
         '''
@@ -621,7 +619,7 @@ class VehicleCommanderInterface(Node):
             steer (float): Steer value
             brake (float): Brake value
         '''
-
+        self.get_logger().info(f'Leader throttle: {throttle}')
         self._leader_vehicle_control.throttle = throttle
         self._leader_vehicle_control.steer = steer
         self._leader_vehicle_control.brake = brake

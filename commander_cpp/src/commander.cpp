@@ -18,6 +18,7 @@ VehicleCommander::VehicleCommander()
 //=================================================
 VehicleCommander::~VehicleCommander()
 {
+    RCLCPP_INFO(this->get_logger(), "Vehicle Commander Destructor");
 }
 
 //=================================================
