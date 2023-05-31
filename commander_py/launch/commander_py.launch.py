@@ -115,11 +115,11 @@ def generate_launch_description():
                         'role_name': launch.substitutions.LaunchConfiguration('role_name')
                     }]),
             # start commander_py
-            launch_ros.actions.Node(
-                package='commander_py',
-                executable='commander_py',
-                output='screen',
-                emulate_tty=True),
+            # launch_ros.actions.Node(
+            #     package='commander_py',
+            #     executable='commander_py',
+            #     output='screen',
+            #     emulate_tty=True),
         ])
     return launch_description
 
