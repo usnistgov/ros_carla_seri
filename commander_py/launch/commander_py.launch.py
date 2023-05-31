@@ -28,13 +28,13 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name='port', default_value='2000', description='TCP port of the CARLA server'),
             launch.actions.DeclareLaunchArgument(
-                name='timeout', default_value='2',
+                name='timeout', default_value='20',
                 description='Time to wait for a successful connection to the CARLA server'),
             launch.actions.DeclareLaunchArgument(
-                name='passive', default_value='True',
+                name='passive', default_value='False',
                 description='When enabled, the ROS bridge will take a backseat and another client must tick the world (only in synchronous mode)'),
             launch.actions.DeclareLaunchArgument(
-                name='synchronous_mode', default_value='False',
+                name='synchronous_mode', default_value='True',
                 description='Enable/disable synchronous mode. If enabled, the ROS bridge waits until the expected data is received for all sensors'),
             launch.actions.DeclareLaunchArgument(
                 name='synchronous_mode_wait_for_vehicle_control_command', default_value='False',
@@ -115,11 +115,11 @@ def generate_launch_description():
                         'role_name': launch.substitutions.LaunchConfiguration('role_name')
                     }]),
             # start commander_py
-            launch_ros.actions.Node(
-                package='commander_py',
-                executable='commander_py',
-                output='screen',
-                emulate_tty=True),
+            # launch_ros.actions.Node(
+            #     package='commander_py',
+            #     executable='commander_py',
+            #     output='screen',
+            #     emulate_tty=True),
         ])
     return launch_description
 

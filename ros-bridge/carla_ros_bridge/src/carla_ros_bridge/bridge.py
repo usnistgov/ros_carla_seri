@@ -226,6 +226,8 @@ class CarlaRosBridge(CompatibleNode):
             
         # retrieve weather information from seri.yaml and publish it
         self.set_weather()
+        
+        # TODO: add code to spawn  waypoints in the map
 
         # print output
         self.loginfo(self._output)
