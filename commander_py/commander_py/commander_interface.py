@@ -98,6 +98,7 @@ class VehicleCommanderInterface(Node):
     WAIT_TIME_BEFORE_START = 1.00   # game seconds (time before controller start)
     TOTAL_RUN_TIME = 1000.00  # game seconds (total runtime before sim end)
     TOTAL_FRAME_BUFFER = 300    # number of frames to buffer after total runtime
+    INTERP_LOOKAHEAD_DISTANCE = 20   # lookahead in meters
 
     # selected path
     INTERP_DISTANCE_RES = 0.01  # distance between interpolated points
@@ -168,6 +169,10 @@ class VehicleCommanderInterface(Node):
         self._leader_current_roll = 0
         self._leader_current_pitch = 0
         self._leader_current_yaw = 0
+        
+        # Controller
+        # ---------------------------
+        self._leader_controller = None
 
         # Publisher
         self._leader_cmd_publisher = self.create_publisher(
@@ -222,6 +227,18 @@ class VehicleCommanderInterface(Node):
         self._waypoints_leader_file_name = "waypoints_leader.txt"
         self._waypoints_leader_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_leader_file_name)
         self._waypoints_leader_np = None
+        # Index of waypoint that is currently closest to
+        # the car (assumed to be the first index)
+        self._leader_closest_index = 0
+        # Closest distance of closest waypoint to car
+        self._leader_closest_distance = 0
+        self._leader_wp_distance = []   # distance array
+        self._leader_reached_the_end = False
+        # Linearly interpolate between waypoints and store in a list
+        self._leader_wp_interp = []    # interpolated values
+        # hash table which indexes waypoints_np
+        # to the index of the waypoint in wp_interp
+        self._leader_wp_interp_hash = []
 
         # Follower
         # --------------------------------------------
@@ -270,47 +287,58 @@ class VehicleCommanderInterface(Node):
         # Linear interpolation computation on the waypoints
         # is also used to ensure a fine resolution between points.
 
-        wp_distance = []   # distance array
+        # Because the waypoints are discrete and our controller performs better
+        # with a continuous path, here we will send a subset of the waypoints
+        # within some lookahead distance from the closest point to the vehicle.
+        # Interpolating between each waypoint will provide a finer resolution
+        # path and make it more "continuous". A simple linear interpolation
+        # is used as a preliminary method to address this issue, though it is
+        # better addressed with better interpolation methods (spline
+        # interpolation, for example).
+        # More appropriate interpolation methods will not be used here for the
+        # sake of demonstration on what effects discrete paths can have on
+        # the controller. It is made much more obvious with linear
+        # interpolation, because in a way part of the path will be continuous
+        # while the discontinuous parts (which happens at the waypoints) will
+        # show just what sort of effects these points have on the controller.
+
+        
 
         for i in range(1, self._waypoints_leader_np.shape[0]):
             distance = np.sqrt(
                 (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
                 (self._waypoints_leader_np[i, 1] - self._waypoints_leader_np[i - 1, 1]) ** 2)
-            wp_distance.append(distance)
+            self._leader_wp_distance.append(distance)
         # last distance is 0 because it is the distance
         # from the last waypoint to the last waypoint
-        wp_distance.append(0)
+        self._leader_wp_distance.append(0)
 
-        # Linearly interpolate between waypoints and store in a list
-        wp_interp = []    # interpolated values
-        # hash table which indexes waypoints_np
-        # to the index of the waypoint in wp_interp
-        wp_interp_hash = []
+        
         # counter for current interpolated point index
         interp_counter = 0
         # (rows = waypoints, columns = [x, y, v])
         for i in range(self._waypoints_leader_np.shape[0] - 1):
             # Add original waypoint to interpolated waypoints list (and append
             # it to the hash table)
-            wp_interp.append(list(self._waypoints_leader_np[i]))
-            wp_interp_hash.append(interp_counter)
+            self._leader_wp_interp.append(list(self._waypoints_leader_np[i]))
+            self._leader_wp_interp_hash.append(interp_counter)
             interp_counter += 1
 
             # Interpolate to the next waypoint. First compute the number of
             # points to interpolate based on the desired resolution and
             # incrementally add interpolated points until the next waypoint
             # is about to be reached.
-            num_pts_to_interp = int(np.floor(wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
+            num_pts_to_interp = int(np.floor(self._leader_wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
             wp_vector = self._waypoints_leader_np[i+1] - self._waypoints_leader_np[i]
             wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
 
             for j in range(num_pts_to_interp):
                 next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
-                wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
-                
+                self._leader_wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
+
         # add last waypoint at the end
-        wp_interp.append(list(self._waypoints_leader_np[-1]))
-        wp_interp_hash.append(interp_counter)
+        self._leader_wp_interp.append(list(self._waypoints_leader_np[-1]))
+        self._leader_wp_interp_hash.append(interp_counter)
         interp_counter += 1
 
         #############################################
@@ -318,11 +346,113 @@ class VehicleCommanderInterface(Node):
         #############################################
         # This is where we take the controller2d.py class
         # and apply it to the simulator
-        controller = controller2d.Controller2D(self._leader_csv_file)
-        
+        self._leader_controller = controller2d.Controller2D(self._leader_csv_file)
+
         # Send a control command to proceed to next iteration.
         # This mainly applies for simulations that are in synchronous mode.
         self._send_leader_cmd(throttle=0.0, steer=0, brake=1.0)
+        
+
+    def run_leader(self):
+        '''
+        Function to run the leader vehicle in the timer loop
+        '''
+        ###
+        # Controller update (this uses the controller2d.py implementation)
+        ###
+
+        # To reduce the amount of waypoints sent to the controller,
+        # provide a subset of waypoints that are within some
+        # lookahead distance from the closest point to the car. Provide
+        # a set of waypoints behind the car as well.
+
+        # Find closest waypoint index to car. First increment the index
+        # from the previous index until the new distance calculations
+        # are increasing. Apply the same rule decrementing the index.
+        # The final index should be the closest point (it is assumed that
+        # the car will always break out of instability points where there
+        # are two indices with the same minimum distance, as in the
+        # center of a circle)
+        
+        current_x = self._leader_current_x
+        current_y = self._leader_current_y
+        current_yaw = self._leader_current_yaw
+        current_speed = self._leader_current_speed
+        current_timestamp = self._current_time
+        
+        closest_distance = np.linalg.norm(np.array([
+            self._waypoints_leader_np[self._leader_closest_index, 0] - current_x,
+            self._waypoints_leader_np[self._leader_closest_index, 1] - current_y]))
+        new_distance = closest_distance
+        new_index = self._leader_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._leader_closest_index = new_index
+            new_index += 1
+            if new_index >= self._waypoints_leader_np.shape[0]:  # End of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_leader_np[new_index, 0] - current_x,
+                self._waypoints_leader_np[new_index, 1] - current_y]))
+        new_distance = closest_distance
+        new_index = self._leader_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._leader_closest_index = new_index
+            new_index -= 1
+            if new_index < 0:  # Beginning of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_leader_np[new_index, 0] - current_x,
+                self._waypoints_leader_np[new_index, 1] - current_y]))
+        
+        # Once the closest index is found, return the path that has 1
+        # waypoint behind and X waypoints ahead, where X is the index
+        # that has a lookahead distance specified by
+        # INTERP_LOOKAHEAD_DISTANCE
+        waypoint_subset_first_index = self._leader_closest_index - 1
+        if waypoint_subset_first_index < 0:
+            waypoint_subset_first_index = 0
+
+        waypoint_subset_last_index = self._leader_closest_index
+        total_distance_ahead = 0
+        while total_distance_ahead < self.INTERP_LOOKAHEAD_DISTANCE:
+            total_distance_ahead += self._leader_wp_distance[waypoint_subset_last_index]
+            waypoint_subset_last_index += 1
+            if waypoint_subset_last_index >= self._waypoints_leader_np.shape[0]:
+                waypoint_subset_last_index = self._waypoints_leader_np.shape[0] - 1
+                break
+            
+        # Use the first and last waypoint subset indices into the hash
+        # table to obtain the first and last indicies for the interpolated
+        # list. Update the interpolated waypoints to the controller
+        # for the next controller update.
+        new_waypoints = \
+            self._leader_wp_interp[wp_interp_hash[waypoint_subset_first_index]:
+                                   self._leader_wp_interp_hash[waypoint_subset_last_index] + 1]
+        self._leader_controller.update_waypoints(new_waypoints)
+
+        # Update the other controller values and controls
+        self._leader_controller.update_values(current_x, current_y, current_yaw,
+                                    current_speed,
+                                    current_timestamp, frame)
+        self._leader_controller.update_controls()
+        cmd_throttle, cmd_steer, cmd_brake = self._leader_controller.get_commands()
+
+        # Output controller command to CARLA server
+        self._send_leader_cmd(throttle=cmd_throttle, steer=cmd_steer, brake=cmd_brake)
+
+        # Find if reached the end of waypoint. If the car is within
+        # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
+        # the simulation will end.
+        dist_to_last_waypoint = np.linalg.norm(np.array([
+            waypoints[-1][0] - current_x,
+            waypoints[-1][1] - current_y]))
+        if dist_to_last_waypoint < self.DIST_THRESHOLD_TO_LAST_WAYPOINT:
+            self._leader_reached_the_end = True
+        if self._leader_reached_the_end:
+            self.get_logger().info("Reached the end of path.")
+            self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
 
     # def run(self):
     #     '''
