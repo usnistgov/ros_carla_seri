@@ -98,6 +98,7 @@ class VehicleCommanderInterface(Node):
     WAIT_TIME_BEFORE_START = 1.00   # game seconds (time before controller start)
     TOTAL_RUN_TIME = 1000.00  # game seconds (total runtime before sim end)
     TOTAL_FRAME_BUFFER = 300    # number of frames to buffer after total runtime
+    INTERP_LOOKAHEAD_DISTANCE = 20   # lookahead in meters
 
     # selected path
     INTERP_DISTANCE_RES = 0.01  # distance between interpolated points
@@ -222,6 +223,11 @@ class VehicleCommanderInterface(Node):
         self._waypoints_leader_file_name = "waypoints_leader.txt"
         self._waypoints_leader_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_leader_file_name)
         self._waypoints_leader_np = None
+        # Index of waypoint that is currently closest to
+        # the car (assumed to be the first index)
+        self._leader_closest_index = 0
+        # Closest distance of closest waypoint to car
+        self._leader_closest_distance = 0
 
         # Follower
         # --------------------------------------------
@@ -270,6 +276,21 @@ class VehicleCommanderInterface(Node):
         # Linear interpolation computation on the waypoints
         # is also used to ensure a fine resolution between points.
 
+        # Because the waypoints are discrete and our controller performs better
+        # with a continuous path, here we will send a subset of the waypoints
+        # within some lookahead distance from the closest point to the vehicle.
+        # Interpolating between each waypoint will provide a finer resolution
+        # path and make it more "continuous". A simple linear interpolation
+        # is used as a preliminary method to address this issue, though it is
+        # better addressed with better interpolation methods (spline
+        # interpolation, for example).
+        # More appropriate interpolation methods will not be used here for the
+        # sake of demonstration on what effects discrete paths can have on
+        # the controller. It is made much more obvious with linear
+        # interpolation, because in a way part of the path will be continuous
+        # while the discontinuous parts (which happens at the waypoints) will
+        # show just what sort of effects these points have on the controller.
+
         wp_distance = []   # distance array
 
         for i in range(1, self._waypoints_leader_np.shape[0]):
@@ -307,7 +328,7 @@ class VehicleCommanderInterface(Node):
             for j in range(num_pts_to_interp):
                 next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
                 wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
-                
+
         # add last waypoint at the end
         wp_interp.append(list(self._waypoints_leader_np[-1]))
         wp_interp_hash.append(interp_counter)
@@ -319,10 +340,77 @@ class VehicleCommanderInterface(Node):
         # This is where we take the controller2d.py class
         # and apply it to the simulator
         controller = controller2d.Controller2D(self._leader_csv_file)
-        
+
         # Send a control command to proceed to next iteration.
         # This mainly applies for simulations that are in synchronous mode.
         self._send_leader_cmd(throttle=0.0, steer=0, brake=1.0)
+        
+
+    def run_leader(self):
+        '''
+        Function to run the leader vehicle in the timer loop
+        '''
+        ###
+        # Controller update (this uses the controller2d.py implementation)
+        ###
+
+        # To reduce the amount of waypoints sent to the controller,
+        # provide a subset of waypoints that are within some
+        # lookahead distance from the closest point to the car. Provide
+        # a set of waypoints behind the car as well.
+
+        # Find closest waypoint index to car. First increment the index
+        # from the previous index until the new distance calculations
+        # are increasing. Apply the same rule decrementing the index.
+        # The final index should be the closest point (it is assumed that
+        # the car will always break out of instability points where there
+        # are two indices with the same minimum distance, as in the
+        # center of a circle)
+        
+        current_x = self._leader_current_x
+        current_y = self._leader_current_y
+        closest_distance = np.linalg.norm(np.array([
+            self._waypoints_leader_np[self._leader_closest_index, 0] - current_x,
+            self._waypoints_leader_np[self._leader_closest_index, 1] - current_y]))
+        new_distance = closest_distance
+        new_index = self._leader_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._leader_closest_index = new_index
+            new_index += 1
+            if new_index >= self._waypoints_leader_np.shape[0]:  # End of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_leader_np[new_index, 0] - current_x,
+                self._waypoints_leader_np[new_index, 1] - current_y]))
+        new_distance = closest_distance
+        new_index = self._leader_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._leader_closest_index = new_index
+            new_index -= 1
+            if new_index < 0:  # Beginning of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_leader_np[new_index, 0] - current_x,
+                self._waypoints_leader_np[new_index, 1] - current_y]))
+        
+        # Once the closest index is found, return the path that has 1
+        # waypoint behind and X waypoints ahead, where X is the index
+        # that has a lookahead distance specified by
+        # INTERP_LOOKAHEAD_DISTANCE
+        waypoint_subset_first_index = self._leader_closest_index - 1
+        if waypoint_subset_first_index < 0:
+            waypoint_subset_first_index = 0
+
+        waypoint_subset_last_index = self._leader_closest_index
+        total_distance_ahead = 0
+        while total_distance_ahead < self.INTERP_LOOKAHEAD_DISTANCE:
+            total_distance_ahead += wp_distance[waypoint_subset_last_index]
+            waypoint_subset_last_index += 1
+            if waypoint_subset_last_index >= waypoints_np.shape[0]:
+                waypoint_subset_last_index = waypoints_np.shape[0] - 1
+                break
 
     # def run(self):
     #     '''
