@@ -28,15 +28,18 @@ class Controller2D(object):
         self._pi = np.pi
         self._2pi = 2.0 * np.pi
 
-    def update_values(self, x, y, yaw, speed, timestamp, frame):
+    # def update_values(self, x, y, yaw, speed, timestamp, frame):
+
+    def update_values(self, x, y, yaw, speed, timestamp):
+
         self._current_x = x
         self._current_y = y
         self._current_yaw = yaw
         self._current_speed = speed
         self._current_timestamp = timestamp
-        self._current_frame = frame
-        if self._current_frame:
-            self._start_control_loop = True
+        # self._current_frame = frame
+        # if self._current_frame:
+        #     self._start_control_loop = True
 
     def get_lookahead_index(self, lookahead_distance):
         min_idx = 0
