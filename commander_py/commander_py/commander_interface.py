@@ -307,6 +307,7 @@ class VehicleCommanderInterface(Node):
             for j in range(num_pts_to_interp):
                 next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
                 wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
+                
         # add last waypoint at the end
         wp_interp.append(list(self._waypoints_leader_np[-1]))
         wp_interp_hash.append(interp_counter)
@@ -318,6 +319,10 @@ class VehicleCommanderInterface(Node):
         # This is where we take the controller2d.py class
         # and apply it to the simulator
         controller = controller2d.Controller2D(self._leader_csv_file)
+        
+        # Send a control command to proceed to next iteration.
+        # This mainly applies for simulations that are in synchronous mode.
+        self._send_leader_cmd(throttle=0.0, steer=0, brake=1.0)
 
     # def run(self):
     #     '''
@@ -602,7 +607,8 @@ class VehicleCommanderInterface(Node):
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
         self._follower_current_velocity = msg.velocity
-        self.get_logger().info(f'Follower velocity: {self._follower_current_velocity}', throttle_duration_sec=2)
+        self.get_logger().info(f'Follower velocity: {self._follower_current_velocity}',
+                               throttle_duration_sec=2)
         # self.get_logger().info(f'Velocity: {msg.velocity}')
         # self.get_logger().info(f'Throttle: {msg.control.throttle}')
         # self.get_logger().info(f'Steer: {msg.control.steer}')
@@ -616,7 +622,8 @@ class VehicleCommanderInterface(Node):
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
         self._leader_current_velocity = msg.velocity
-        self.get_logger().info(f'Leader velocity: {self._leader_current_velocity}', throttle_duration_sec=2)
+        self.get_logger().info(f'Leader velocity: {self._leader_current_velocity}',
+                               throttle_duration_sec=2)
 
     def _follower_odometry_cb(self, msg: Odometry):
         '''
@@ -688,7 +695,7 @@ class VehicleCommanderInterface(Node):
 
     # def _vehicle_action_timer_callback(self):
     #     '''
-    #     Callback for the timer 
+    #     Callback for the timer
     #     '''
 
     #     pass
