@@ -74,10 +74,12 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             self.get_actor_waypoint)
 
         # set initial goal
-        self.goal = self.world.get_map().get_spawn_points()[0]
+        self.goal = self.world.get_map().get_spawn_points()[112]
 
-        # for waypoint in self.world.get_map().get_spawn_points():
-        #     print(f"Spawnpoint: {waypoint}")
+        wp_i = 0
+        for waypoint in self.world.get_map().get_spawn_points():
+            print(f"{wp_i}: {waypoint}")
+            wp_i += 1
        
 
         self.current_route = None
