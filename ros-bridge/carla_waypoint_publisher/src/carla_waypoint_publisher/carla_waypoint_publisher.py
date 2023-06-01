@@ -74,7 +74,13 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             self.get_actor_waypoint)
 
         # set initial goal
-        self.goal = self.world.get_map().get_spawn_points()[0]
+        self.goal = self.world.get_map().get_spawn_points()[112]
+
+        wp_i = 0
+        for waypoint in self.world.get_map().get_spawn_points():
+            print(f"{wp_i}: {waypoint}")
+            wp_i += 1
+       
 
         self.current_route = None
         self.goal_subscriber = self.new_subscription(
@@ -208,6 +214,13 @@ class CarlaToRosWaypointConverter(CompatibleNode):
                                 carla.Location(goal.location.x,
                                                goal.location.y,
                                                goal.location.z))
+        for i in range(len(route)):
+            self.world.debug.draw_point(
+                route[i][0].transform.location,
+                size=0.2,
+                persistent_lines=True,
+                color=carla.Color(r=255, g=0, b=0),
+                life_time=20)
 
         return route
 

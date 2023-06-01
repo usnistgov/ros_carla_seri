@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 
 
 from math import sin, cos, pi
@@ -10,6 +10,10 @@ from commander_py import velocity_planner
 
 
 class LocalPlanner:
+    '''
+    Local planner between waypoints that uses the path optimizer.
+    '''
+
     def __init__(self, num_paths, path_offset, circle_offsets, circle_radii,
                  path_select_weight, time_gap, a_max, slow_speed,
                  stop_line_buffer):
@@ -24,13 +28,13 @@ class LocalPlanner:
             velocity_planner.VelocityPlanner(time_gap, a_max, slow_speed,
                                              stop_line_buffer)
 
-
     # Computes the goal state set from a given goal position. This is done by
     # laterally sampling offsets from the goal location along the direction
     # perpendicular to the goal yaw of the ego vehicle.
+
     def get_goal_state_set(self, goal_index, goal_state, waypoints, ego_state):
         """Gets the goal states given a goal position.
-        
+
         Gets the goal states given a goal position. The states 
 
         args:
