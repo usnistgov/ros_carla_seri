@@ -36,8 +36,8 @@ from commander_py import (
 )
 # import common functions
 from commander_py.common import read_yaml
-# import pygame
-# import carla
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
 
 
 # ===============================================================
@@ -103,34 +103,95 @@ class VehicleCommanderInterface(Node):
     # selected path
     INTERP_DISTANCE_RES = 0.01  # distance between interpolated points
 
+    
+        
+        
     def __init__(self):
         super().__init__('vehicle_commander')
-
-        #############################################
-        # Time related variables
-        #############################################
-        self._current_time = 0.0
 
         #############################################
         # Callback groups
         #############################################
         _timer_group = MutuallyExclusiveCallbackGroup()
         _subscription_group = MutuallyExclusiveCallbackGroup()
-
+    
         #############################################
-        # Follower
+        # Publishers
         #############################################
-
+        
+        # Publisher to control the follower vehicle
+        self._follower_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl,
+            '/carla/ego_vehicle/vehicle_control_cmd',
+            10)
+        # Message to control the follower vehicle
+        self._follower_vehicle_control = CarlaEgoVehicleControl()
+        
+        # Publisher to control the leader vehicle
+        self._leader_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl, 
+            '/carla/hero/vehicle_control_cmd', 
+            10)
+        # Message to control the leader vehicle
+        self._leader_autopilot_publisher = self.create_publisher(
+            Bool, 
+            '/carla/hero/enable_autopilot', 
+            10)
+        
+        #############################################
         # Subscribers
+        #############################################
+        
+        # Subscriber to the follower vehicle status
         self.create_subscription(CarlaEgoVehicleStatus,
                                  '/carla/ego_vehicle/vehicle_status',
                                  self._follower_status_cb,
                                  10,
                                  callback_group=_subscription_group)
 
-        self.create_subscription(Odometry, '/carla/ego_vehicle/odometry',
-                                 self._follower_odometry_cb, 10, callback_group=_subscription_group)
+        # Subscriber to the follower vehicle odometry
+        self.create_subscription(Odometry,
+                                 '/carla/ego_vehicle/odometry',
+                                 self._follower_odometry_cb,
+                                 10,
+                                 callback_group=_subscription_group)
+        
+        # Subscriber to waypoints topic
+        self.create_subscription(Path,
+                                 '/carla/ego_vehicle/waypoints',
+                                 self._follower_waypoints_cb,
+                                 10,
+                                 callback_group=_subscription_group)
 
+        # Subscriber to the leader vehicle status
+        self.create_subscription(CarlaEgoVehicleStatus,
+                                 '/carla/hero/vehicle_status',
+                                 self._leader_status_cb,
+                                 10,
+                                 callback_group=_subscription_group)
+        
+        # Subscriber to the leader vehicle odometry
+        self.create_subscription(Odometry,
+                                 '/carla/hero/odometry',
+                                 self._leader_odometry_cb,
+                                 10,
+                                 callback_group=_subscription_group)
+        
+        # Subscriber to the clock (to get the current time)
+        self.create_subscription(Clock, '/clock',
+                                 self._clock_cb,
+                                 10,
+                                 callback_group=_subscription_group)
+        
+        
+        #############################################
+        # Time related variables
+        #############################################
+        self._current_time = 0.0
+
+        #############################################
+        # Follower related variables
+        #############################################
         self._follower_current_speed = 0
         self._follower_current_x = 0
         self._follower_current_y = 0
@@ -142,23 +203,9 @@ class VehicleCommanderInterface(Node):
         self._follower_current_pitch = 0
         self._follower_current_yaw = 0
 
-        # Publishers
-        self._follower_cmd_publisher = self.create_publisher(
-            CarlaEgoVehicleControl, '/carla/ego_vehicle/vehicle_control_cmd', 10)
-        self._follower_vehicle_control = CarlaEgoVehicleControl()
-
         #############################################
-        # Leader
+        # Leader related variables
         #############################################
-        self.create_subscription(CarlaEgoVehicleStatus,
-                                 '/carla/hero/vehicle_status',
-                                 self._leader_status_cb,
-                                 10,
-                                 callback_group=_subscription_group)
-
-        self.create_subscription(Odometry, '/carla/hero/odometry',
-                                 self._leader_odometry_cb, 10, callback_group=_subscription_group)
-
         self._leader_current_speed = 0
         self._leader_current_x = 0
         self._leader_current_y = 0
@@ -169,55 +216,43 @@ class VehicleCommanderInterface(Node):
         self._leader_current_roll = 0
         self._leader_current_pitch = 0
         self._leader_current_yaw = 0
-        
+
         # Controller
         # ---------------------------
         self._leader_controller = None
-
-        # Publisher
-        self._leader_cmd_publisher = self.create_publisher(
-            CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 10)
         self._leader_vehicle_control = CarlaEgoVehicleControl()
-
-        self._leader_autopilot_publisher = self.create_publisher(
-            Bool, '/carla/hero/enable_autopilot', 10)
         self._leader_autopilot_control = Bool()
 
-        #############################################
-        # Simulation time
-        #############################################
-        self.create_subscription(Clock, '/clock',
-                                 self._clock_cb, 10, callback_group=_subscription_group)
-        self._current_time = 0
+        
 
         #############################################
-        # timer
+        # Timer to run the control loop for the leader
         #############################################
-        # self._vehicle_action_timer = self.create_timer(1, self._vehicle_action_timer_callback,
-        #  callback_group=_timer_group)
         self._run_leader_timer = self.create_timer(1.0, self._run_leader,
-                                                          callback_group=_timer_group)
+                                                   callback_group=_timer_group)
 
-        # seri.yaml
+        #########################################################
+        # Variables related to the configuration file: seri.yaml
+        #########################################################
         carla_common_pkg = FindPackageShare(package='carla_common').find('carla_common')
         config_file_name = "seri.yaml"
         config_file_path = os.path.join(carla_common_pkg, 'config', config_file_name)
         self._yaml_data = read_yaml(config_file_path)
 
         #############################################
-        # stop sign fences
+        # Stop sign fences
         #############################################
         self._stopsign_fences = []     # [x0, y0, x1, y1]
         # self._get_stopsign_fences()
 
         #############################################
-        # parked vehicle boxes
+        # Parked vehicle boxes
         #############################################
         self._parked_vehicle_box_pts = []      # [x,y]
         # self._get_parked_vehicle_boxes()
 
         #############################################
-        # Waypoints
+        # Variables related to Waypoints
         #############################################
         self._waypoints_acquired = False
         self._leader_csv_file = None
@@ -246,16 +281,19 @@ class VehicleCommanderInterface(Node):
         self._waypoints_follower_file_path = os.path.join(
             carla_common_pkg, 'config', self._waypoints_follower_file_name)
         self._waypoints_follower_np = None
-
         self._get_waypoints()
         self._waypoints_acquired = True
+        self._follower_waypoints_acquired = False
         # print(self._waypoints_leader_np.shape)
         # print(self._waypoints_follower_np.shape)
 
+        #############################################
+        # Function calls
+        #############################################
         # Leader follows waypoints
         self._leader_follow_waypoints()
 
-        # This will be used in callback functions to start following waypoint
+        # Message to show that the node has been initialised
 
         print("\N{cat} VehicleCommanderInterface Node has been initialised.")
 
@@ -302,8 +340,6 @@ class VehicleCommanderInterface(Node):
         # while the discontinuous parts (which happens at the waypoints) will
         # show just what sort of effects these points have on the controller.
 
-        
-
         for i in range(1, self._waypoints_leader_np.shape[0]):
             distance = np.sqrt(
                 (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
@@ -313,7 +349,6 @@ class VehicleCommanderInterface(Node):
         # from the last waypoint to the last waypoint
         self._leader_wp_distance.append(0)
 
-        
         # counter for current interpolated point index
         interp_counter = 0
         # (rows = waypoints, columns = [x, y, v])
@@ -351,7 +386,6 @@ class VehicleCommanderInterface(Node):
         # Send a control command to proceed to next iteration.
         # This mainly applies for simulations that are in synchronous mode.
         self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
-        
 
     def _run_leader(self):
         '''
@@ -373,13 +407,13 @@ class VehicleCommanderInterface(Node):
         # the car will always break out of instability points where there
         # are two indices with the same minimum distance, as in the
         # center of a circle)
-        
+
         current_x = self._leader_current_x
         current_y = self._leader_current_y
         current_yaw = self._leader_current_yaw
         current_speed = self._leader_current_speed
         current_timestamp = self._current_time
-        
+
         closest_distance = np.linalg.norm(np.array([
             self._waypoints_leader_np[self._leader_closest_index, 0] - current_x,
             self._waypoints_leader_np[self._leader_closest_index, 1] - current_y]))
@@ -405,7 +439,7 @@ class VehicleCommanderInterface(Node):
             new_distance = np.linalg.norm(np.array([
                 self._waypoints_leader_np[new_index, 0] - current_x,
                 self._waypoints_leader_np[new_index, 1] - current_y]))
-        
+
         # Once the closest index is found, return the path that has 1
         # waypoint behind and X waypoints ahead, where X is the index
         # that has a lookahead distance specified by
@@ -422,7 +456,7 @@ class VehicleCommanderInterface(Node):
             if waypoint_subset_last_index >= self._waypoints_leader_np.shape[0]:
                 waypoint_subset_last_index = self._waypoints_leader_np.shape[0] - 1
                 break
-            
+
         # Use the first and last waypoint subset indices into the hash
         # table to obtain the first and last indicies for the interpolated
         # list. Update the interpolated waypoints to the controller
@@ -434,8 +468,8 @@ class VehicleCommanderInterface(Node):
 
         # Update the other controller values and controls
         self._leader_controller.update_values(current_x, current_y, current_yaw,
-                                    current_speed,
-                                    current_timestamp)
+                                              current_speed,
+                                              current_timestamp)
         self._leader_controller.update_controls()
         cmd_throttle, cmd_steer, cmd_brake = self._leader_controller.get_commands()
 
@@ -453,8 +487,6 @@ class VehicleCommanderInterface(Node):
         if self._leader_reached_the_end:
             self.get_logger().info("Reached the end of path.")
             self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
-
-
 
     # def _get_parked_vehicle_boxes(self):
     #     parked_vehicles = None
@@ -519,8 +551,6 @@ class VehicleCommanderInterface(Node):
     #             spos = np.add(np.matmul(rotyaw, spos), spos_shift)
     #             self._stopsign_fences.append([spos[0, 0], spos[1, 0], spos[0, 1], spos[1, 1]])
 
-
-
     def _clock_cb(self, msg: Clock):
         '''
         /clock topic callback function
@@ -556,6 +586,19 @@ class VehicleCommanderInterface(Node):
         self._leader_current_speed = msg.velocity
         # self.get_logger().info(f'Leader velocity: {self._leader_current_speed}',
         #                        throttle_duration_sec=2)
+
+    def _follower_waypoints_cb(self, msg: Path):
+        
+        '''
+        /carla/ego_vehicle/waypoints topic callback function
+
+        Args:
+            msg (Path): Path message
+        '''
+        if not self._follower_waypoints_acquired:
+            self._follower_waypoints_acquired = True
+            for pose in msg.poses:
+                self.get_logger().info(f'Follower Waypoints: {pose.pose.position.x}, {pose.pose.position.y}, {pose.pose.position.z}')
 
     def _follower_odometry_cb(self, msg: Odometry):
         '''

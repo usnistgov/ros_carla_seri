@@ -74,7 +74,8 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             self.get_actor_waypoint)
 
         # set initial goal
-        self.goal = self.world.get_map().get_spawn_points()[112]
+        follower_goal_index = self.get_param("follower_goal_index", 112)
+        self.follower_goal = self.world.get_map().get_spawn_points()[follower_goal_index]
 
         wp_i = 0
         for waypoint in self.world.get_map().get_spawn_points():
@@ -149,19 +150,19 @@ class CarlaToRosWaypointConverter(CompatibleNode):
         """
         self.loginfo("Received goal, trigger rerouting...")
         carla_goal = trans.ros_pose_to_carla_transform(goal.pose)
-        self.goal = carla_goal
+        self.follower_goal = carla_goal
         self.reroute()
 
     def reroute(self):
         """
         Triggers a rerouting
         """
-        if self.ego_vehicle is None or self.goal is None:
+        if self.ego_vehicle is None or self.follower_goal is None:
             # no ego vehicle, remove route if published
             self.current_route = None
             self.publish_waypoints()
         else:
-            self.current_route = self.calculate_route(self.goal)
+            self.current_route = self.calculate_route(self.follower_goal)
         self.publish_waypoints()
 
     def find_ego_vehicle_actor(self, _):
