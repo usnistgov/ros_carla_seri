@@ -122,13 +122,23 @@ def generate_launch_description():
                         'role_name': launch.substitutions.LaunchConfiguration('role_name')
                     }]),
             
+            launch.actions.DeclareLaunchArgument(
+                name='control_method', default_value='MPC',
+                description='Control method: MPC, Stanley, PurePursuit'),
+            
+            
             # start commander_py
             # Make sure this Node is started before carla_waypoint_publisher.launch.py
             launch_ros.actions.Node(
                 package='commander_py',
                 executable='commander_py',
                 output='screen',
-                emulate_tty=True),
+                emulate_tty=True,
+                parameters=[
+                    {
+                        'control_method': launch.substitutions.LaunchConfiguration('control_method')
+                    }
+                ]),
 
             # from carla_waypoint_publisher.launch.py
             launch_ros.actions.Node(
@@ -136,7 +146,7 @@ def generate_launch_description():
                 executable='carla_waypoint_publisher',
                 name='carla_waypoint_publisher',
                 output='screen',
-                emulate_tty='True',
+                emulate_tty=True,
                 parameters=[
                     {
                         'host': launch.substitutions.LaunchConfiguration('host')

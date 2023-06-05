@@ -79,7 +79,7 @@ class CarlaToRosWaypointConverter(CompatibleNode):
 
         wp_i = 0
         for waypoint in self.world.get_map().get_spawn_points():
-            print(f"{wp_i}: {waypoint}")
+            # print(f"{wp_i}: {waypoint}")
             wp_i += 1
        
 
@@ -210,7 +210,8 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             goal.location.y,
             goal.location.z))
 
-        grp = GlobalRoutePlanner(self.world.get_map(), sampling_resolution=1)
+        # Waypoint every 3 meters
+        grp = GlobalRoutePlanner(self.world.get_map(), sampling_resolution=3)
         route = grp.trace_route(self.ego_vehicle.get_location(),
                                 carla.Location(goal.location.x,
                                                goal.location.y,
@@ -221,7 +222,7 @@ class CarlaToRosWaypointConverter(CompatibleNode):
                 size=0.2,
                 persistent_lines=True,
                 color=carla.Color(r=255, g=0, b=0),
-                life_time=20)
+                life_time=0)
 
         return route
 
