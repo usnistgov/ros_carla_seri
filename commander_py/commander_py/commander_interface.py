@@ -19,6 +19,8 @@ Node to command two vehicles: A leader and a follower.
 import os
 import sys
 import csv
+import rclpy
+import time
 import numpy as np
 import tf_transformations
 # import rclpy
@@ -29,15 +31,16 @@ from std_msgs.msg import Bool
 from launch_ros.substitutions import FindPackageShare
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry
-from commander_py import (
-    controller2d,
-    local_planner,
-    behavioral_planner
-)
-# import common functions
+from nav_msgs.msg import Path
 from commander_py.common import read_yaml
-# import pygame
-# import carla
+from commander_py import controller2d
+# (
+#     controller2d,
+#     local_planner,
+#     behavioral_planner
+# )
+
+
 
 
 # ===============================================================
@@ -50,6 +53,39 @@ __email__ = "zeid.kootbally@nist.gov"
 __status__ = "Development"
 # ===============================================================
 
+
+class Timer(object):
+    """ Timer Class
+    
+    The steps are used to calculate FPS, while the lap or seconds since lap is
+    used to compute elapsed time.
+    """
+
+    def __init__(self, period):
+        self.step = 0
+        self._lap_step = 0
+        self._lap_time = time.time()
+        self._period_for_lap = period
+
+    def tick(self):
+        self.step += 1
+
+    def has_exceeded_lap_period(self):
+        if self.elapsed_seconds_since_lap() >= self._period_for_lap:
+            return True
+        else:
+            return False
+
+    def lap(self):
+        self._lap_step = self.step
+        self._lap_time = time.time()
+
+    def ticks_per_second(self):
+        return float(self.step - self._lap_step) /\
+            self.elapsed_seconds_since_lap()
+
+    def elapsed_seconds_since_lap(self):
+        return time.time() - self._lap_time
 
 class VehicleCommanderInterface(Node):
     '''
@@ -64,7 +100,7 @@ class VehicleCommanderInterface(Node):
     Attributes:
         _timer_group                Callback group for the timer.
         _subscription_group         Callback group for all subscribers.
-        _follower_current_velocity  Current velocity of the follower.
+        _follower_current_speed  Current velocity of the follower.
         _follower_current_x         Current x position of the follower.
         _follower_current_y         Current y position of the follower.
         _follower_current_rot_x     Current x rotation of the follower.
@@ -98,39 +134,119 @@ class VehicleCommanderInterface(Node):
     WAIT_TIME_BEFORE_START = 1.00   # game seconds (time before controller start)
     TOTAL_RUN_TIME = 1000.00  # game seconds (total runtime before sim end)
     TOTAL_FRAME_BUFFER = 300    # number of frames to buffer after total runtime
+    INTERP_LOOKAHEAD_DISTANCE = 20   # lookahead in meters
 
     # selected path
     INTERP_DISTANCE_RES = 0.01  # distance between interpolated points
+    
 
+    # commander output directory
+    COMMANDER_OUTPUT_FOLDER = os.path.dirname(os.path.realpath(__file__)) +\
+    '/commander_output/'
+    WAYPOINTS_OUTPUT_FILE = 'waypoints.txt'
+
+    
+        
+        
     def __init__(self):
         super().__init__('vehicle_commander')
+        
 
+
+
+        #########################################################
+        # Controller Method: Pure Pursuit, Stanley, Pure Pursuit
+        #########################################################
+        
+        # self.declare_parameter('control_method', rclpy.Parameter.Type.STRING)
+        self.declare_parameter('control_method', rclpy.Parameter.Type.STRING)
+        self._control_method = self.get_parameter("control_method")
+        self.get_logger().info(f"Control Method: {self._control_method.value}")
+        
+        # Callback groups
+        #############################################
+        self._leader_timer_group = MutuallyExclusiveCallbackGroup()
+        self._follower_timer_group = MutuallyExclusiveCallbackGroup()
+        self._subscription_group = MutuallyExclusiveCallbackGroup()
+        self._follower_subscription_group = MutuallyExclusiveCallbackGroup()
+        #############################################
+        # Publishers
+        #############################################
+        
+        # Publisher to control the follower vehicle
+        self._follower_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl,
+            '/carla/ego_vehicle/vehicle_control_cmd',
+            10)
+        # Message to control the follower vehicle
+        self._follower_vehicle_control = CarlaEgoVehicleControl()
+        
+        # Publisher to control the leader vehicle
+        self._leader_cmd_publisher = self.create_publisher(
+            CarlaEgoVehicleControl, 
+            '/carla/hero/vehicle_control_cmd', 
+            10)
+        # Message to control the leader vehicle
+        self._leader_autopilot_publisher = self.create_publisher(
+            Bool, 
+            '/carla/hero/enable_autopilot', 
+            10)
+        
+        #############################################
+        # Subscribers
+        #############################################
+        
+        # Subscriber to the follower vehicle status
+        self.create_subscription(CarlaEgoVehicleStatus,
+                                 '/carla/ego_vehicle/vehicle_status',
+                                 self._follower_status_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+
+        # Subscriber to the follower vehicle odometry
+        self.create_subscription(Odometry,
+                                 '/carla/ego_vehicle/odometry',
+                                 self._follower_odometry_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+        
+        # Subscriber to waypoints topic
+        self.create_subscription(Path,
+                                 '/carla/ego_vehicle/waypoints',
+                                 self._follower_waypoints_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+
+        # Subscriber to the leader vehicle status
+        self.create_subscription(CarlaEgoVehicleStatus,
+                                 '/carla/hero/vehicle_status',
+                                 self._leader_status_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+        
+        # Subscriber to the leader vehicle odometry
+        self.create_subscription(Odometry,
+                                 '/carla/hero/odometry',
+                                 self._leader_odometry_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+        
+        # Subscriber to the clock (to get the current time)
+        self.create_subscription(Clock, '/clock',
+                                 self._clock_cb,
+                                 10,
+                                 callback_group=self._subscription_group)
+        
+        
         #############################################
         # Time related variables
         #############################################
         self._current_time = 0.0
 
         #############################################
-        # Callback groups
+        # Follower related variables
         #############################################
-        _timer_group = MutuallyExclusiveCallbackGroup()
-        _subscription_group = MutuallyExclusiveCallbackGroup()
-
-        #############################################
-        # Follower
-        #############################################
-
-        # Subscribers
-        self.create_subscription(CarlaEgoVehicleStatus,
-                                 '/carla/ego_vehicle/vehicle_status',
-                                 self._follower_status_cb,
-                                 10,
-                                 callback_group=_subscription_group)
-
-        self.create_subscription(Odometry, '/carla/ego_vehicle/odometry',
-                                 self._follower_odometry_cb, 10, callback_group=_subscription_group)
-
-        self._follower_current_velocity = 0
+        self._follower_current_speed = 0
         self._follower_current_x = 0
         self._follower_current_y = 0
         self._follower_current_rot_x = 0
@@ -140,25 +256,25 @@ class VehicleCommanderInterface(Node):
         self._follower_current_roll = 0
         self._follower_current_pitch = 0
         self._follower_current_yaw = 0
-
-        # Publishers
-        self._follower_cmd_publisher = self.create_publisher(
-            CarlaEgoVehicleControl, '/carla/ego_vehicle/vehicle_control_cmd', 10)
+        
+        self._follower_ready = False
+        
+        
+        # Used for logging waypoints every 3 m
+        self._waypoints_within_distance = False
+        self._follower_log_x = 0
+        self._follower_log_y = 0
+        
+        # Controller
+        # ---------------------------
+        self._follower_controller = None
         self._follower_vehicle_control = CarlaEgoVehicleControl()
+        self._follower_autopilot_control = Bool()
 
         #############################################
-        # Leader
+        # Leader related variables
         #############################################
-        self.create_subscription(CarlaEgoVehicleStatus,
-                                 '/carla/hero/vehicle_status',
-                                 self._leader_status_cb,
-                                 10,
-                                 callback_group=_subscription_group)
-
-        self.create_subscription(Odometry, '/carla/hero/odometry',
-                                 self._leader_odometry_cb, 10, callback_group=_subscription_group)
-
-        self._leader_current_velocity = 0
+        self._leader_current_speed = 0
         self._leader_current_x = 0
         self._leader_current_y = 0
         self._leader_current_rot_x = 0
@@ -169,353 +285,466 @@ class VehicleCommanderInterface(Node):
         self._leader_current_pitch = 0
         self._leader_current_yaw = 0
 
-        # Publisher
-        self._leader_cmd_publisher = self.create_publisher(
-            CarlaEgoVehicleControl, '/carla/hero/vehicle_control_cmd', 10)
+        # Controller
+        # ---------------------------
+        self._leader_controller = None
         self._leader_vehicle_control = CarlaEgoVehicleControl()
-
-        self._leader_autopilot_publisher = self.create_publisher(
-            Bool, '/carla/hero/enable_autopilot', 10)
         self._leader_autopilot_control = Bool()
 
+        
         #############################################
-        # Simulation time
+        # Timer to run the control loop for the leader
         #############################################
-        self.create_subscription(Clock, '/clock',
-                                 self._clock_cb, 10, callback_group=_subscription_group)
-        self._current_time = 0
+        # self._run_leader_timer = self.create_timer(1.0, self._run_leader,
+        #                                            callback_group=self._leader_timer_group)
+        
+        # self._run_follower_timer = self.create_timer(1.0, self._run_follower,
+        #                                            callback_group=self._follower_timer_group)
 
-        #############################################
-        # timer
-        #############################################
-        # self._vehicle_action_timer = self.create_timer(1, self._vehicle_action_timer_callback,
-        #  callback_group=_timer_group)
-        self._waypoint_follower_timer = self.create_timer(0.5, self._waypoint_follower_cb,
-                                                          callback_group=_timer_group)
-
-        # seri.yaml
+        #########################################################
+        # Variables related to the configuration file: seri.yaml
+        #########################################################
         carla_common_pkg = FindPackageShare(package='carla_common').find('carla_common')
         config_file_name = "seri.yaml"
         config_file_path = os.path.join(carla_common_pkg, 'config', config_file_name)
         self._yaml_data = read_yaml(config_file_path)
 
         #############################################
-        # stop sign fences
+        # Stop sign fences
         #############################################
         self._stopsign_fences = []     # [x0, y0, x1, y1]
         # self._get_stopsign_fences()
 
         #############################################
-        # parked vehicle boxes
+        # Parked vehicle boxes
         #############################################
         self._parked_vehicle_box_pts = []      # [x,y]
         # self._get_parked_vehicle_boxes()
 
         #############################################
-        # Waypoints
+        # Variables related to Waypoints
         #############################################
-        self._waypoints_acquired = False
         self._leader_csv_file = None
         self._follower_csv_file = None
+        self._follower_waypoints = []
         # Leader
         # --------------------------------------------
         self._waypoints_leader_file_name = "waypoints_leader.txt"
         self._waypoints_leader_file_path = os.path.join(carla_common_pkg, 'config', self._waypoints_leader_file_name)
         self._waypoints_leader_np = None
+        # Index of waypoint that is currently closest to
+        # the car (assumed to be the first index)
+        self._leader_closest_index = 0
+        # Closest distance of closest waypoint to car
+        self._leader_closest_distance = 0
+        self._leader_wp_distance = []   # distance array
+        self._leader_reached_the_end = False
+        # Linearly interpolate between waypoints and store in a list
+        self._leader_wp_interp = []    # interpolated values
+        # hash table which indexes waypoints_np
+        # to the index of the waypoint in wp_interp
+        self._leader_wp_interp_hash = []
 
         # Follower
         # --------------------------------------------
-        self._waypoints_follower_file_name = "waypoints_follower.txt"
-        self._waypoints_follower_file_path = os.path.join(
-            carla_common_pkg, 'config', self._waypoints_follower_file_name)
+        # self._waypoints_follower_file_name = "waypoints_follower.txt"
+        # self._waypoints_follower_file_path = os.path.join(
+        #     carla_common_pkg, 'config', self._waypoints_follower_file_name)
         self._waypoints_follower_np = None
-
-        self._get_waypoints()
-        self._waypoints_acquired = True
-        # print(self._waypoints_leader_np.shape)
-        # print(self._waypoints_follower_np.shape)
-
-        # Leader follows waypoints
-        self._leader_follow_waypoints()
-
-        # This will be used in callback functions to start following waypoint
+        self._follower_wp_distance = []   # distance array
+        # Linearly interpolate between waypoints and store in a list
+        self._follower_wp_interp = []       # interpolated values
+        # (rows = waypoints, columns = [x, y, v])
+        self._follower_wp_interp_hash = []  # hash table which indexes waypoints_np
+                                            # to the index of the waypoint in wp_interp
+        self._follower_waypoints_acquired = False
+        self._follower_reached_the_end = False
+        self._follower_closest_index = 0  # Index of waypoint that is currently closest to
+        # the car (assumed to be the first index)
+        self._follower_closest_distance = 0  # Closest distance of closest waypoint to car
 
         print("\N{cat} VehicleCommanderInterface Node has been initialised.")
 
-    def _get_waypoints(self):
-        '''
-        Get the waypoints for the leader and the follower.
-        '''
-        try:
-            with open(self._waypoints_leader_file_path, encoding="utf8") as stream:
-                self._leader_csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
-                self._waypoints_leader_np = np.array(self._leader_csv_file)
-        except FileNotFoundError:
-            self.get_logger().error(f"The file {self._waypoints_leader_file_path} does not exist.")
-            sys.exit()
+ 
 
-        try:
-            with open(self._waypoints_follower_file_path, encoding="utf8") as stream:
-                self._follower_csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
-                self._waypoints_follower_np = np.array(self._follower_csv_file)
-        except FileNotFoundError:
-            self.get_logger().error(f"The file {self._waypoints_follower_file_path} does not exist.")
-            sys.exit()
+    def _set_up_follower_waypoints(self):
 
-    def _leader_follow_waypoints(self):
-        '''
-        Make both the leader and the follower follow the waypoints.
-        '''
-        # Update the controller waypoint path with the best local path.
-        # Linear interpolation computation on the waypoints
-        # is also used to ensure a fine resolution between points.
+        # --------------------------------------------
+        # self._follower_waypoints_acquired is True
+        # --------------------------------------------
+        # Linear interpolation computations
+        # Compute a list of distances between waypoints
 
-        wp_distance = []   # distance array
-
-        for i in range(1, self._waypoints_leader_np.shape[0]):
-            distance = np.sqrt(
-                (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
-                (self._waypoints_leader_np[i, 1] - self._waypoints_leader_np[i - 1, 1]) ** 2)
-            wp_distance.append(distance)
+        for i in range(1, self._waypoints_follower_np.shape[0]):
+            distance = np.sqrt((self._waypoints_follower_np[i, 0] - self._waypoints_follower_np[i-1, 0])**2 +
+                               (self._waypoints_follower_np[i, 1] - self._waypoints_follower_np[i-1, 1])**2)
+            
+            # self.get_logger().info(
+            #     f"Waypoint 1: [{self._waypoints_follower_np[i-1, 0], self._waypoints_follower_np[i-1, 1]}]")
+            # self.get_logger().info(
+            #     f"Waypoint 2: [{self._waypoints_follower_np[i, 0], self._waypoints_follower_np[i, 1]}]")
+            # self.get_logger().info(f"Distance between waypoints: {distance}")
+            self._follower_wp_distance.append(distance)
+            
+        # sys.exit()
         # last distance is 0 because it is the distance
         # from the last waypoint to the last waypoint
-        wp_distance.append(0)
+        self._follower_wp_distance.append(0)
 
-        # Linearly interpolate between waypoints and store in a list
-        wp_interp = []    # interpolated values
-        # hash table which indexes waypoints_np
-        # to the index of the waypoint in wp_interp
-        wp_interp_hash = []
-        # counter for current interpolated point index
-        interp_counter = 0
-        # (rows = waypoints, columns = [x, y, v])
-        for i in range(self._waypoints_leader_np.shape[0] - 1):
+        interp_counter = 0   # counter for current interpolated point index
+
+        for i in range(self._waypoints_follower_np.shape[0] - 1):
             # Add original waypoint to interpolated waypoints list (and append
             # it to the hash table)
-            wp_interp.append(list(self._waypoints_leader_np[i]))
-            wp_interp_hash.append(interp_counter)
+            self._follower_wp_interp.append(list(self._waypoints_follower_np[i]))
+            self._follower_wp_interp_hash.append(interp_counter)
             interp_counter += 1
 
             # Interpolate to the next waypoint. First compute the number of
             # points to interpolate based on the desired resolution and
             # incrementally add interpolated points until the next waypoint
             # is about to be reached.
-            num_pts_to_interp = int(np.floor(wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
-            wp_vector = self._waypoints_leader_np[i+1] - self._waypoints_leader_np[i]
-            wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
-
+            num_pts_to_interp = int(np.floor(self._follower_wp_distance[i] /
+                                             float(self.INTERP_DISTANCE_RES)) - 1)
+            wp_vector = self._waypoints_follower_np[i+1] - self._waypoints_follower_np[i]
+            wp_uvector = wp_vector / np.linalg.norm(wp_vector)
             for j in range(num_pts_to_interp):
                 next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
-                wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
+                self._follower_wp_interp.append(list(self._waypoints_follower_np[i] + next_wp_vector))
+                interp_counter += 1
         # add last waypoint at the end
-        wp_interp.append(list(self._waypoints_leader_np[-1]))
-        wp_interp_hash.append(interp_counter)
+        self._follower_wp_interp.append(list(self._waypoints_follower_np[-1]))
+        self._follower_wp_interp_hash.append(interp_counter)
         interp_counter += 1
-
+        
         #############################################
         # Controller 2D Class Declaration
         #############################################
         # This is where we take the controller2d.py class
         # and apply it to the simulator
-        controller = controller2d.Controller2D(self._leader_csv_file)
+        self._follower_controller = controller2d.Controller2D(self._follower_waypoints, self._control_method)
+        self._follower_ready = True
 
-    # def run(self):
+        
+        
+        
+        
+    # def _get_waypoints(self):
     #     '''
-    #     Scenario Execution Loop
+    #     Get the waypoints for the leader and the follower.
     #     '''
+        
+    #     try:
+    #         with open(self._waypoints_leader_file_path, encoding="utf8") as stream:
+    #             self._leader_csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+    #             self._waypoints_leader_np = np.array(self._leader_csv_file)
+    #     except FileNotFoundError:
+    #         self.get_logger().error(f"The file {self._waypoints_leader_file_path} does not exist.")
+    #         sys.exit()
 
-    #     # Iterate the frames until the end of the waypoints is reached or
-    #     # the TOTAL_EPISODE_FRAMES is reached. The controller simulation then
-    #     # ouptuts the results to the controller output directory.
-    #     reached_the_end = False
-    #     skip_first_frame = True
 
-    #     # # Initialize the current timestamp.
-    #     current_timestamp = self._start_timestamp
+    #     # try:
+    #     #     with open(self._waypoints_follower_file_path, encoding="utf8") as stream:
+    #     #         self._follower_csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+    #     #         print(self._follower_csv_file)
+    #     #         self._waypoints_follower_np = np.array(self._follower_csv_file)
+    #     # except FileNotFoundError:
+    #     #     self.get_logger().error(f"The file {self._waypoints_follower_file_path} does not exist.")
+    #     #     sys.exit()
 
-    #     # # Initialize collision history
-    #     prev_collision_vehicles = 0
-    #     prev_collision_pedestrians = 0
-    #     prev_collision_other = 0
+    # def _leader_follow_waypoints(self):
+    #     '''
+    #     Make both the leader and the follower follow the waypoints.
+    #     '''
+    #     # Update the controller waypoint path with the best local path.
+    #     # Linear interpolation computation on the waypoints
+    #     # is also used to ensure a fine resolution between points.
 
-    #     # for frame in range(TOTAL_EPISODE_FRAMES):
-    #     # Gather current data from the CARLA server
+    #     # Because the waypoints are discrete and our controller performs better
+    #     # with a continuous path, here we will send a subset of the waypoints
+    #     # within some lookahead distance from the closest point to the vehicle.
+    #     # Interpolating between each waypoint will provide a finer resolution
+    #     # path and make it more "continuous". A simple linear interpolation
+    #     # is used as a preliminary method to address this issue, though it is
+    #     # better addressed with better interpolation methods (spline
+    #     # interpolation, for example).
+    #     # More appropriate interpolation methods will not be used here for the
+    #     # sake of demonstration on what effects discrete paths can have on
+    #     # the controller. It is made much more obvious with linear
+    #     # interpolation, because in a way part of the path will be continuous
+    #     # while the discontinuous parts (which happens at the waypoints) will
+    #     # show just what sort of effects these points have on the controller.
 
-    #     # Update pose and timestamp
-    #     prev_timestamp = current_timestamp
-    #     current_x = self._follower_current_x
-    #     current_y = self._follower_current_y
-    #     current_yaw = self._follower_current_yaw
+    #     for i in range(1, self._waypoints_leader_np.shape[0]):
+    #         distance = np.sqrt(
+    #             (self._waypoints_leader_np[i, 0] - self._waypoints_leader_np[i - 1, 0]) ** 2 +
+    #             (self._waypoints_leader_np[i, 1] - self._waypoints_leader_np[i - 1, 1]) ** 2)
+    #         self._leader_wp_distance.append(distance)
+    #     # last distance is 0 because it is the distance
+    #     # from the last waypoint to the last waypoint
+    #     self._leader_wp_distance.append(0)
 
-    #     current_speed = self._follower_current_velocity
-    #     current_timestamp = float(self._current_time)
+    #     # counter for current interpolated point index
+    #     interp_counter = 0
+    #     # (rows = waypoints, columns = [x, y, v])
+    #     for i in range(self._waypoints_leader_np.shape[0] - 1):
+    #         # Add original waypoint to interpolated waypoints list (and append
+    #         # it to the hash table)
+    #         self._leader_wp_interp.append(list(self._waypoints_leader_np[i]))
+    #         self._leader_wp_interp_hash.append(interp_counter)
+    #         interp_counter += 1
 
-    #     # Wait for some initial time before starting the demo
-    #     self._send_follower_cmd(0.0, 0.0, 1.0)
+    #         # Interpolate to the next waypoint. First compute the number of
+    #         # points to interpolate based on the desired resolution and
+    #         # incrementally add interpolated points until the next waypoint
+    #         # is about to be reached.
+    #         num_pts_to_interp = int(np.floor(self._leader_wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
+    #         wp_vector = self._waypoints_leader_np[i+1] - self._waypoints_leader_np[i]
+    #         wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
 
-    #     # Store history
-    #     # self._x_history.append(current_x)
-    #     # self._y_history.append(current_y)
-    #     # self._yaw_history.append(current_yaw)
-    #     # self._speed_history.append(current_speed)
-    #     # self._time_history.append(current_timestamp)
+    #         for j in range(num_pts_to_interp):
+    #             next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
+    #             self._leader_wp_interp.append(list(self._waypoints_leader_np[i] + next_wp_vector))
 
-    #     # Store collision history
-    #     # collided_flag, prev_collision_vehicles, prev_collision_pedestrians, prev_collision_other = get_player_collided_flag(
-    #     #     measurement_data, prev_collision_vehicles, prev_collision_pedestrians, prev_collision_other)
-    #     # collided_flag_history.append(collided_flag)
+    #     # add last waypoint at the end
+    #     self._leader_wp_interp.append(list(self._waypoints_leader_np[-1]))
+    #     self._leader_wp_interp_hash.append(interp_counter)
+    #     interp_counter += 1
 
+    #     #############################################
+    #     # Controller 2D Class Declaration
+    #     #############################################
+    #     # This is where we take the controller2d.py class
+    #     # and apply it to the simulator
+    #     self._leader_controller = controller2d.Controller2D(self._leader_csv_file)
+
+    #     # Send a control command to proceed to next iteration.
+    #     # This mainly applies for simulations that are in synchronous mode.
+    #     self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
+
+    def _run_follower(self):
+        '''
+        Function to run the follower vehicle in the timer loop
+        '''
+        
+        if not self._follower_ready:
+            return
+        
+        if self._follower_reached_the_end:
+            return
+        
+        self.get_logger().info("Running follower")
+        # ---------------------------------------------
+        # Gather current data from the CARLA server
+        # ---------------------------------------------
+            
+        # Update pose, timestamp
+        current_x = self._follower_current_x
+        current_y = self._follower_current_y
+        current_yaw = self._follower_current_yaw
+        current_speed = self._follower_current_speed
+        # current_timestamp = self._current_time
+        
+        length = 0.0
+        # Shift x, y coordinates
+        if self._control_method == 'PurePursuit':
+            length = -1.5
+        elif self._control_method in ['Stanley', 'MPC']:
+            length = 1.5
+
+        current_x, current_y = self._follower_controller.get_shifted_coordinate(current_x, current_y, current_yaw, length)
+
+        # ---------------------------------------------
+        # Controller update (this uses the controller2d.py implementation)
+        # ---------------------------------------------
+
+        # To reduce the amount of waypoints sent to the controller,
+        # provide a subset of waypoints that are within some
+        # lookahead distance from the closest point to the car. Provide
+        # a set of waypoints behind the car as well.
+
+        # Find closest waypoint index to car. First increment the index
+        # from the previous index until the new distance calculations
+        # are increasing. Apply the same rule decrementing the index.
+        # The final index should be the closest point (it is assumed that
+        # the car will always break out of instability points where there
+        # are two indices with the same minimum distance, as in the
+        # center of a circle)
+        closest_distance = np.linalg.norm(np.array([
+            self._waypoints_follower_np[self._follower_closest_index, 0] - current_x,
+            self._waypoints_follower_np[self._follower_closest_index, 1] - current_y]))
+            
+        new_distance = closest_distance
+        new_index = self._follower_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._follower_closest_index = new_index
+            new_index += 1
+            if new_index >= self._waypoints_follower_np.shape[0]:  # End of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_follower_np[new_index, 0] - current_x,
+                self._waypoints_follower_np[new_index, 1] - current_y]))
+        new_distance = closest_distance
+        new_index = self._follower_closest_index
+        while new_distance <= closest_distance:
+            closest_distance = new_distance
+            self._follower_closest_index = new_index
+            new_index -= 1
+            if new_index < 0:  # Beginning of path
+                break
+            new_distance = np.linalg.norm(np.array([
+                self._waypoints_follower_np[new_index, 0] - current_x,
+                self._waypoints_follower_np[new_index, 1] - current_y]))
+
+        # Once the closest index is found, return the path that has 1
+        # waypoint behind and X waypoints ahead, where X is the index
+        # that has a lookahead distance specified by
+        # INTERP_LOOKAHEAD_DISTANCE
+        waypoint_subset_first_index = self._follower_closest_index - 1
+        if waypoint_subset_first_index < 0:
+            waypoint_subset_first_index = 0
+
+        waypoint_subset_last_index = self._follower_closest_index
+        total_distance_ahead = 0
+        while total_distance_ahead < self.INTERP_LOOKAHEAD_DISTANCE:
+            total_distance_ahead += self._follower_wp_distance[waypoint_subset_last_index]
+            waypoint_subset_last_index += 1
+            if waypoint_subset_last_index >= self._waypoints_follower_np.shape[0]:
+                waypoint_subset_last_index = self._waypoints_follower_np.shape[0] - 1
+                break
+
+        # Use the first and last waypoint subset indices into the hash
+        # table to obtain the first and last indicies for the interpolated
+        # list. Update the interpolated waypoints to the controller
+        # for the next controller update.
+        new_waypoints = \
+            self._follower_wp_interp[self._follower_wp_interp_hash[waypoint_subset_first_index]:
+                                     self._follower_wp_interp_hash[waypoint_subset_last_index] + 1]
+        self._follower_controller.update_waypoints(new_waypoints)
+
+        # Update the other controller values and controls
+        self._follower_controller.update_values(current_x, current_y, current_yaw,
+                                 current_speed, new_distance)
+        
+        self._follower_controller.update_controls()
+        cmd_throttle, cmd_steer, cmd_brake = self._follower_controller.get_commands()
+
+        # Output controller command to CARLA server        
+        self._send_follower_cmd(throttle=float(cmd_throttle), steer=float(cmd_steer), brake=float(cmd_brake))
+
+        # Find if reached the end of waypoint. If the car is within
+        # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
+        # the simulation will end.
+        dist_to_last_waypoint = np.linalg.norm(np.array([
+            self._follower_waypoints[-1][0] - current_x,
+            self._follower_waypoints[-1][1] - current_y]))
+        if dist_to_last_waypoint < self.DIST_THRESHOLD_TO_LAST_WAYPOINT:
+            self._follower_reached_the_end = True
+            self._send_follower_cmd(throttle=0.0, steer=0.0, brake=1.0)
+        
+        
+    
+    # def _run_leader(self):
+    #     '''
+    #     Function to run the leader vehicle in the timer loop
+    #     '''
     #     ###
-    #     # Local Planner Update:
-    #     #   This will use the behavioral_planner.py and local_planner.py
+    #     # Controller update (this uses the controller2d.py implementation)
     #     ###
 
-    #     # Obtain Lead Vehicle information.
-    #     lead_car_pos = []
-    #     lead_car_length = []
-    #     lead_car_speed = []
+    #     # To reduce the amount of waypoints sent to the controller,
+    #     # provide a subset of waypoints that are within some
+    #     # lookahead distance from the closest point to the car. Provide
+    #     # a set of waypoints behind the car as well.
 
-    #     lead_car_pos.append([agent.vehicle.transform.location.x, agent.vehicle.transform.location.y])
-    #     lead_car_length.append(agent.vehicle.bounding_box.extent.x)
-    #     lead_car_speed.append(self._leader_current_velocity)
+    #     # Find closest waypoint index to car. First increment the index
+    #     # from the previous index until the new distance calculations
+    #     # are increasing. Apply the same rule decrementing the index.
+    #     # The final index should be the closest point (it is assumed that
+    #     # the car will always break out of instability points where there
+    #     # are two indices with the same minimum distance, as in the
+    #     # center of a circle)
 
-    #     # Execute the behaviour and local planning in the current instance
-    #     # Note that updating the local path during every controller update
-    #     # produces issues with the tracking performance (imagine everytime
-    #     # the controller tried to follow the path, a new path appears). For
-    #     # this reason, the local planner (LP) will update every X frame,
-    #     # stored in the variable LP_FREQUENCY_DIVISOR, as it is analogous
-    #     # to be operating at a frequency that is a division to the
-    #     # simulation frequency.
-    #     # if frame % self.LP_FREQUENCY_DIVISOR == 0:
-    #     # --------------------------------------------------------------
-    #     #  # Compute open loop speed estimate.
-    #     open_loop_speed = self._local_planner._velocity_planner.get_open_loop_speed(current_timestamp - prev_timestamp)
+    #     current_x = self._leader_current_x
+    #     current_y = self._leader_current_y
+    #     current_yaw = self._leader_current_yaw
+    #     current_speed = self._leader_current_speed
+    #     current_timestamp = self._current_time
 
-    #     #  # Calculate the goal state set in the local frame for the local planner.
-    #     #  # Current speed should be open loop for the velocity profile generation.
-    #     ego_state = [current_x, current_y, current_yaw, open_loop_speed]
+    #     closest_distance = np.linalg.norm(np.array([
+    #         self._waypoints_leader_np[self._leader_closest_index, 0] - current_x,
+    #         self._waypoints_leader_np[self._leader_closest_index, 1] - current_y]))
+    #     new_distance = closest_distance
+    #     new_index = self._leader_closest_index
+    #     while new_distance <= closest_distance:
+    #         closest_distance = new_distance
+    #         self._leader_closest_index = new_index
+    #         new_index += 1
+    #         if new_index >= self._waypoints_leader_np.shape[0]:  # End of path
+    #             break
+    #         new_distance = np.linalg.norm(np.array([
+    #             self._waypoints_leader_np[new_index, 0] - current_x,
+    #             self._waypoints_leader_np[new_index, 1] - current_y]))
+    #     new_distance = closest_distance
+    #     new_index = self._leader_closest_index
+    #     while new_distance <= closest_distance:
+    #         closest_distance = new_distance
+    #         self._leader_closest_index = new_index
+    #         new_index -= 1
+    #         if new_index < 0:  # Beginning of path
+    #             break
+    #         new_distance = np.linalg.norm(np.array([
+    #             self._waypoints_leader_np[new_index, 0] - current_x,
+    #             self._waypoints_leader_np[new_index, 1] - current_y]))
 
-    #     #  # Set lookahead based on current speed.
-    #     self._behavioral_planner.set_lookahead(self.BP_LOOKAHEAD_BASE + self.BP_LOOKAHEAD_TIME * open_loop_speed)
+    #     # Once the closest index is found, return the path that has 1
+    #     # waypoint behind and X waypoints ahead, where X is the index
+    #     # that has a lookahead distance specified by
+    #     # INTERP_LOOKAHEAD_DISTANCE
+    #     waypoint_subset_first_index = self._leader_closest_index - 1
+    #     if waypoint_subset_first_index < 0:
+    #         waypoint_subset_first_index = 0
 
-    #     #  # Perform a state transition in the behavioural planner.
-    #     self._behavioral_planner.transition_state(self._waypoints, ego_state, current_speed)
+    #     waypoint_subset_last_index = self._leader_closest_index
+    #     total_distance_ahead = 0
+    #     while total_distance_ahead < self.INTERP_LOOKAHEAD_DISTANCE:
+    #         total_distance_ahead += self._leader_wp_distance[waypoint_subset_last_index]
+    #         waypoint_subset_last_index += 1
+    #         if waypoint_subset_last_index >= self._waypoints_leader_np.shape[0]:
+    #             waypoint_subset_last_index = self._waypoints_leader_np.shape[0] - 1
+    #             break
 
-    #     #  # Check to see if we need to follow the lead vehicle.
-    #     # bp.check_for_lead_vehicle(ego_state, lead_car_pos[1])
+    #     # Use the first and last waypoint subset indices into the hash
+    #     # table to obtain the first and last indicies for the interpolated
+    #     # list. Update the interpolated waypoints to the controller
+    #     # for the next controller update.
+    #     new_waypoints = \
+    #         self._leader_wp_interp[self._leader_wp_interp_hash[waypoint_subset_first_index]:
+    #                                self._leader_wp_interp_hash[waypoint_subset_last_index] + 1]
+    #     self._leader_controller.update_waypoints(new_waypoints)
 
-    #     #  # Compute the goal state set from the behavioural planner's computed goal state.
-    #     goal_state_set = self._local_planner.get_goal_state_set(
-    #         self._behavioral_planner._goal_index,
-    #         self._behavioral_planner._goal_state,
-    #         self._waypoints, ego_state)
+    #     # Update the other controller values and controls
+    #     self._leader_controller.update_values(current_x, current_y, current_yaw,
+    #                                           current_speed,
+    #                                           current_timestamp)
+    #     self._leader_controller.update_controls()
+    #     cmd_throttle, cmd_steer, cmd_brake = self._leader_controller.get_commands()
 
-    #     #  # Calculate planned paths in the local frame.
-    #     paths, path_validity = self._local_planner.plan_paths(goal_state_set)
+    #     # Output controller command to CARLA server
+    #     self._send_leader_cmd(throttle=float(cmd_throttle), steer=float(cmd_steer), brake=float(cmd_brake))
 
-    #     #  # Transform those paths back to the global frame.
-    #     paths = local_planner.transform_paths(paths, ego_state)
-
-    #     #  # Perform collision checking.
-    #     collision_check_array = self._local_planner._collision_checker.collision_check(
-    #         paths, [self._parked_vehicle_box_pts])
-
-    #     #  # Compute the best local path.
-    #     best_index = self._local_planner._collision_checker.select_best_path_index(
-    #         paths, collision_check_array, self._behavioral_planner._goal_state)
-    #     # If no path was feasible, continue to follow the previous best path.
-    #     # if best_index == None:
-    #     #     best_path = self._local_planner._prev_best_path
-    #     # else:
-    #     best_path = paths[best_index]
-    #     self._local_planner._prev_best_path = best_path
-
-    #     #  # Compute the velocity profile for the path, and compute the waypoints.
-    #     #  # Use the lead vehicle to inform the velocity profile's dynamic obstacle handling.
-    #     #  # In this scenario, the only dynamic obstacle is the lead vehicle at index 1.
-    #     desired_speed = self._behavioral_planner._goal_state[2]
-    #     lead_car_state = [lead_car_pos[1][0], lead_car_pos[1][1], lead_car_speed[1]]
-    #     decelerate_to_stop = self._behavioral_planner._state == behavioral_planner.DECELERATE_TO_STOP
-    #     local_waypoints = self._local_planner._velocity_planner.compute_velocity_profile(
-    #         best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, self._behavioral_planner._follow_lead_vehicle)
-    #     # --------------------------------------------------------------
-
-    #     if local_waypoints != None:
-    #         # Update the controller waypoint path with the best local path.
-    #         # This controller is similar to that developed in Course 1 of this
-    #         # specialization.  Linear interpolation computation on the waypoints
-    #         # is also used to ensure a fine resolution between points.
-    #         wp_distance = []   # distance array
-    #         local_waypoints_np = np.array(local_waypoints)
-    #         for i in range(1, local_waypoints_np.shape[0]):
-    #             wp_distance.append(
-    #                 np.sqrt((local_waypoints_np[i, 0] - local_waypoints_np[i-1, 0])**2 +
-    #                         (local_waypoints_np[i, 1] - local_waypoints_np[i-1, 1])**2))
-    #         wp_distance.append(0)  # last distance is 0 because it is the distance
-    #         # from the last waypoint to the last waypoint
-
-    #         # Linearly interpolate between waypoints and store in a list
-    #         wp_interp = []    # interpolated values
-    #         # (rows = waypoints, columns = [x, y, v])
-    #         for i in range(local_waypoints_np.shape[0] - 1):
-    #             # Add original waypoint to interpolated waypoints list (and append
-    #             # it to the hash table)
-    #             wp_interp.append(list(local_waypoints_np[i]))
-
-    #             # Interpolate to the next waypoint. First compute the number of
-    #             # points to interpolate based on the desired resolution and
-    #             # incrementally add interpolated points until the next waypoint
-    #             # is about to be reached.
-    #             num_pts_to_interp = int(np.floor(wp_distance[i] / float(self.INTERP_DISTANCE_RES)) - 1)
-    #             wp_vector = local_waypoints_np[i+1] - local_waypoints_np[i]
-    #             wp_uvector = wp_vector / np.linalg.norm(wp_vector[0:2])
-
-    #             for j in range(num_pts_to_interp):
-    #                 next_wp_vector = self.INTERP_DISTANCE_RES * float(j+1) * wp_uvector
-    #                 wp_interp.append(list(local_waypoints_np[i] + next_wp_vector))
-    #         # add last waypoint at the end
-    #         wp_interp.append(list(local_waypoints_np[-1]))
-
-    #         # Update the other controller values and controls
-    #         self._controller.update_waypoints(wp_interp)
-
-    #         ###
-    #         # Controller Update
-    #         ###
-    #         if local_waypoints is not None and local_waypoints != []:
-    #             # self._controller.update_values(current_x, current_y, current_yaw,
-    #             #                          current_speed,
-    #             #                          current_timestamp, frame)
-    #             self._controller.update_controls()
-    #             cmd_throttle, cmd_steer, cmd_brake = self._controller.get_commands()
-    #         else:
-    #             cmd_throttle = 0.0
-    #             cmd_steer = 0.0
-    #             cmd_brake = 0.0
-
-    #         # Skip the first frame or if there exists no local paths
-    #         # if skip_first_frame and frame == 0:
-    #         #     pass
-    #         # elif local_waypoints == None:
-    #         #     pass
-    #         # else:
-    #         #     pass
-
-    #         # Output controller command to CARLA server
-    #         self._send_follower_cmd(cmd_throttle, cmd_steer, cmd_brake)
-
-    #         # Find if reached the end of waypoint. If the car is within
-    #         # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
-    #         # the simulation will end.
-    #         dist_to_last_waypoint = np.linalg.norm(np.array([
-    #             self._waypoints[-1][0] - current_x,
-    #             self._waypoints[-1][1] - current_y]))
-    #         if dist_to_last_waypoint < self.DIST_THRESHOLD_TO_LAST_WAYPOINT:
-    #             reached_the_end = True
-    #         if reached_the_end:
-    #             # stop the vehicle
-    #             self._send_follower_cmd(0.0, 0.0, 1.0)
+    #     # Find if reached the end of waypoint. If the car is within
+    #     # DIST_THRESHOLD_TO_LAST_WAYPOINT to the last waypoint,
+    #     # the simulation will end.
+    #     dist_to_last_waypoint = np.linalg.norm(np.array([
+    #         self._leader_csv_file[-1][0] - current_x,
+    #         self._leader_csv_file[-1][1] - current_y]))
+    #     if dist_to_last_waypoint < self.DIST_THRESHOLD_TO_LAST_WAYPOINT:
+    #         self._leader_reached_the_end = True
+    #     if self._leader_reached_the_end:
+    #         self.get_logger().info("Reached the end of path.")
+    #         self._send_leader_cmd(throttle=0.0, steer=0.0, brake=1.0)
 
     # def _get_parked_vehicle_boxes(self):
     #     parked_vehicles = None
@@ -580,10 +809,6 @@ class VehicleCommanderInterface(Node):
     #             spos = np.add(np.matmul(rotyaw, spos), spos_shift)
     #             self._stopsign_fences.append([spos[0, 0], spos[1, 0], spos[0, 1], spos[1, 1]])
 
-    def _waypoint_follower_cb(self):
-        # self.run()
-        pass
-
     def _clock_cb(self, msg: Clock):
         '''
         /clock topic callback function
@@ -591,8 +816,9 @@ class VehicleCommanderInterface(Node):
         Args:
             msg (Clock): Clock message
         '''
+        # self.get_logger().info('_clock_cb', throttle_duration_sec=3)
         self._current_time = msg.clock.sec
-        self.get_logger().info(f'Current time: {self._current_time}', throttle_duration_sec=2)
+        # self.get_logger().info(f'Current time: {self._current_time}', throttle_duration_sec=2)
 
     def _follower_status_cb(self, msg: CarlaEgoVehicleStatus):
         '''
@@ -601,8 +827,11 @@ class VehicleCommanderInterface(Node):
         Args:
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
-        self._follower_current_velocity = msg.velocity
-        self.get_logger().info(f'Follower velocity: {self._follower_current_velocity}', throttle_duration_sec=2)
+        
+        # self.get_logger().info('_follower_status_cb', throttle_duration_sec=3)
+        self._follower_current_speed = msg.velocity
+        if self._waypoints_within_distance:
+            self.get_logger().info(f'Follower velocity: {self._follower_current_speed}')
         # self.get_logger().info(f'Velocity: {msg.velocity}')
         # self.get_logger().info(f'Throttle: {msg.control.throttle}')
         # self.get_logger().info(f'Steer: {msg.control.steer}')
@@ -615,9 +844,46 @@ class VehicleCommanderInterface(Node):
         Args:
             msg (CarlaEgoVehicleStatus): CarlaEgoVehicleStatus message
         '''
-        self._leader_current_velocity = msg.velocity
-        self.get_logger().info(f'Leader velocity: {self._leader_current_velocity}', throttle_duration_sec=2)
+        self._leader_current_speed = msg.velocity
+        # self.get_logger().info(f'Leader velocity: {self._leader_current_speed}',
+        #                        throttle_duration_sec=2)
 
+    def _follower_waypoints_cb(self, msg: Path):
+        
+        '''
+        /carla/ego_vehicle/waypoints topic callback function
+
+        Args:
+            msg (Path): Path message
+        '''
+        if not self._follower_waypoints_acquired:
+            for pose in msg.poses:
+                # self.get_logger().info(f'Waypoint Pose: [{pose.pose.position.x}, {pose.pose.position.y}, {pose.pose.position.z}] [{pose.pose.orientation.x}, {pose.pose.orientation.y}, {pose.pose.orientation.z}, {pose.pose.orientation.w}]')
+                # yaw = tf_transformations.euler_from_quaternion( [pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w])[2]
+                # x, y, velocity
+                self._follower_waypoints.append([pose.pose.position.x, pose.pose.position.y, 15.0])
+            self._waypoints_follower_np = np.array(self._follower_waypoints)
+            self._follower_waypoints_acquired = True
+            self.get_logger().info('Follower waypoints acquired')
+            self._set_up_follower_waypoints()
+
+
+    def _compute_distance(self, x1, y1, x2, y2):
+        
+        '''
+        Compute distance between two points
+
+        Args:
+            x1 (float): x coordinate of first point
+            y1 (float): y coordinate of first point
+            x2 (float): x coordinate of second point
+            y2 (float): y coordinate of second point
+
+        Returns:
+            float: distance between the two points
+        '''
+        return np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+                
     def _follower_odometry_cb(self, msg: Odometry):
         '''
         /carla/ego_vehicle/odometry topic callback function
@@ -625,8 +891,19 @@ class VehicleCommanderInterface(Node):
         Args:
             msg (Odometry): Odometry message
         '''
+   
+        
+        self._waypoints_within_distance = False
+        if self._compute_distance(self._follower_log_x, self._follower_log_y, msg.pose.pose.position.x, msg.pose.pose.position.y) > 2.9:
+            self._follower_log_x = msg.pose.pose.position.x
+            self._follower_log_y = msg.pose.pose.position.y
+            self._waypoints_within_distance = True
+            
+            self.get_logger().info(f'Follower log: [{self._follower_log_x}, {self._follower_log_y}]')
+        
         self._follower_current_x = msg.pose.pose.position.x
         self._follower_current_y = msg.pose.pose.position.y
+        
         self._follower_current_rot_x = msg.pose.pose.orientation.x
         self._follower_current_rot_y = msg.pose.pose.orientation.y
         self._follower_current_rot_z = msg.pose.pose.orientation.z
@@ -636,6 +913,9 @@ class VehicleCommanderInterface(Node):
              self._follower_current_rot_y,
              self._follower_current_rot_z,
              self._follower_current_rot_w])[2]
+        # self.get_logger().info(
+            # f'x: {self._follower_current_x}, y: {self._follower_current_y}, yaw: {self._follower_current_yaw}')
+        # self._follower_current_yaw = np.rad2deg(yaw)
 
     def _leader_odometry_cb(self, msg: Odometry):
         '''
@@ -644,6 +924,8 @@ class VehicleCommanderInterface(Node):
         Args:
             msg (Odometry): Odometry message
         '''
+        
+        # self.get_logger().info('_leader_odometry_cb')
         self._leader_current_x = msg.pose.pose.position.x
         self._leader_current_y = msg.pose.pose.position.y
         self._leader_current_rot_x = msg.pose.pose.orientation.x
@@ -680,7 +962,7 @@ class VehicleCommanderInterface(Node):
             steer (float): Steer value
             brake (float): Brake value
         '''
-
+        # self.get_logger().info(f'Leader throttle: {throttle}')
         self._leader_vehicle_control.throttle = throttle
         self._leader_vehicle_control.steer = steer
         self._leader_vehicle_control.brake = brake
@@ -688,7 +970,7 @@ class VehicleCommanderInterface(Node):
 
     # def _vehicle_action_timer_callback(self):
     #     '''
-    #     Callback for the timer 
+    #     Callback for the timer
     #     '''
 
     #     pass

@@ -28,7 +28,7 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name='port', default_value='2000', description='TCP port of the CARLA server'),
             launch.actions.DeclareLaunchArgument(
-                name='timeout', default_value='2',
+                name='timeout', default_value='20',
                 description='Time to wait for a successful connection to the CARLA server'),
             launch.actions.DeclareLaunchArgument(
                 name='passive', default_value='False',
@@ -68,6 +68,13 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name='role_name',
                 default_value='ego_vehicle'),
+            # from carla_waypoint_publisher.launch.py
+            launch.actions.DeclareLaunchArgument(
+                name='leader_goal_index',
+                default_value='112'),
+            launch.actions.DeclareLaunchArgument(
+                name='follower_goal_index',
+                default_value='112'),
 
             # from carla_ros_bridge.launch.py
             launch_ros.actions.Node(
@@ -114,12 +121,55 @@ def generate_launch_description():
                     {
                         'role_name': launch.substitutions.LaunchConfiguration('role_name')
                     }]),
+            
+            launch.actions.DeclareLaunchArgument(
+                name='control_method', default_value='MPC',
+                description='Control method: MPC, Stanley, PurePursuit'),
+            
+            
             # start commander_py
+            # Make sure this Node is started before carla_waypoint_publisher.launch.py
             launch_ros.actions.Node(
                 package='commander_py',
                 executable='commander_py',
                 output='screen',
-                emulate_tty=True),
+                emulate_tty=True,
+                parameters=[
+                    {
+                        'control_method': launch.substitutions.LaunchConfiguration('control_method')
+                    }
+                ]),
+
+            # from carla_waypoint_publisher.launch.py
+            launch_ros.actions.Node(
+                package='carla_waypoint_publisher',
+                executable='carla_waypoint_publisher',
+                name='carla_waypoint_publisher',
+                output='screen',
+                emulate_tty=True,
+                parameters=[
+                    {
+                        'host': launch.substitutions.LaunchConfiguration('host')
+                    },
+                    {
+                        'port': launch.substitutions.LaunchConfiguration('port')
+                    },
+                    {
+                        'timeout': launch.substitutions.LaunchConfiguration('timeout')
+                    },
+                    {
+                        'role_name': launch.substitutions.LaunchConfiguration('role_name')
+                    }
+                    ,
+                    {
+                        'leader_goal_index': launch.substitutions.LaunchConfiguration('leader_goal_index')
+                    }
+                    ,
+                    {
+                        'follower_goal_index': launch.substitutions.LaunchConfiguration('follower_goal_index')
+                    }
+                ]
+            )
         ])
     return launch_description
 

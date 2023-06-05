@@ -74,7 +74,14 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             self.get_actor_waypoint)
 
         # set initial goal
-        self.goal = self.world.get_map().get_spawn_points()[0]
+        follower_goal_index = self.get_param("follower_goal_index", 112)
+        self.follower_goal = self.world.get_map().get_spawn_points()[follower_goal_index]
+
+        wp_i = 0
+        for waypoint in self.world.get_map().get_spawn_points():
+            # print(f"{wp_i}: {waypoint}")
+            wp_i += 1
+       
 
         self.current_route = None
         self.goal_subscriber = self.new_subscription(
@@ -143,19 +150,19 @@ class CarlaToRosWaypointConverter(CompatibleNode):
         """
         self.loginfo("Received goal, trigger rerouting...")
         carla_goal = trans.ros_pose_to_carla_transform(goal.pose)
-        self.goal = carla_goal
+        self.follower_goal = carla_goal
         self.reroute()
 
     def reroute(self):
         """
         Triggers a rerouting
         """
-        if self.ego_vehicle is None or self.goal is None:
+        if self.ego_vehicle is None or self.follower_goal is None:
             # no ego vehicle, remove route if published
             self.current_route = None
             self.publish_waypoints()
         else:
-            self.current_route = self.calculate_route(self.goal)
+            self.current_route = self.calculate_route(self.follower_goal)
         self.publish_waypoints()
 
     def find_ego_vehicle_actor(self, _):
@@ -203,11 +210,19 @@ class CarlaToRosWaypointConverter(CompatibleNode):
             goal.location.y,
             goal.location.z))
 
-        grp = GlobalRoutePlanner(self.world.get_map(), sampling_resolution=1)
+        # Waypoint every 3 meters
+        grp = GlobalRoutePlanner(self.world.get_map(), sampling_resolution=3)
         route = grp.trace_route(self.ego_vehicle.get_location(),
                                 carla.Location(goal.location.x,
                                                goal.location.y,
                                                goal.location.z))
+        for i in range(len(route)):
+            self.world.debug.draw_point(
+                route[i][0].transform.location,
+                size=0.2,
+                persistent_lines=True,
+                color=carla.Color(r=255, g=0, b=0),
+                life_time=0)
 
         return route
 

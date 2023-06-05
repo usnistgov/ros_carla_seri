@@ -13,6 +13,8 @@ Class that handle communication between CARLA and ROS
 
 import os
 import sys
+import csv
+import numpy as np
 from distutils.version import LooseVersion
 from threading import Thread, Lock, Event
 import yaml
@@ -36,6 +38,7 @@ from carla_ros_bridge.world_info import WorldInfo
 from carla_msgs.msg import CarlaControl, CarlaWeatherParameters
 from carla_msgs.srv import SpawnObject, DestroyObject, GetBlueprints
 from rosgraph_msgs.msg import Clock
+from launch_ros.substitutions import FindPackageShare
 
 
 class CarlaRosBridge(CompatibleNode):
@@ -70,7 +73,7 @@ class CarlaRosBridge(CompatibleNode):
         Args:
             path (str): absolute path to the yaml file
 
-        '''        
+        '''
         with open(path, "r") as stream:
             try:
                 return yaml.safe_load(stream)
@@ -91,14 +94,14 @@ class CarlaRosBridge(CompatibleNode):
         config_file_path = os.path.join(pkg_share, 'config', config_file_name)
 
         data = self.read_yaml(config_file_path)
-            
+
         try:
             weather = data["weather"]
         except KeyError:
             self.get_logger().info(
                 "YAML configuration file does not contain a 'weather' section")
             sys.exit(1)
-            
+
         msg = CarlaWeatherParameters()
         msg.cloudiness = weather.get("cloudiness", 0.0)
         msg.precipitation = weather.get("precipitation", 0.0)
@@ -110,10 +113,9 @@ class CarlaRosBridge(CompatibleNode):
         msg.sun_azimuth_angle = weather.get("sun_azimuth_angle", 0.0)
         msg.sun_altitude_angle = weather.get("sun_altitude_angle", 0.0)
         self.carla_weather_publisher.publish(msg)
-        
-        
-        
+
     # pylint: disable=attribute-defined-outside-init
+
     def initialize_bridge(self, carla_world, params):
         """
         Initialize the bridge
@@ -221,11 +223,33 @@ class CarlaRosBridge(CompatibleNode):
         self.carla_weather_subscriber = \
             self.new_subscription(CarlaWeatherParameters, "/carla/weather_control",
                                   self.on_weather_changed, qos_profile=10, callback_group=self.callback_group)
-            
+
         self.carla_weather_publisher = self.new_publisher(CarlaWeatherParameters, "/carla/weather_control", 10)
-            
+
         # retrieve weather information from seri.yaml and publish it
         self.set_weather()
+
+
+        # ---------------------------------------------
+        # Draw waypoints for the leader in the world
+        # ---------------------------------------------
+
+        # waypoints_leader_np = None
+        # carla_common_pkg = FindPackageShare(package='carla_common').find('carla_common')
+        # waypoints_leader_file_name = "waypoints_leader.txt"
+        # waypoints_leader_file_path = os.path.join(carla_common_pkg, 'config', waypoints_leader_file_name)
+        # try:
+        #     with open(waypoints_leader_file_path, encoding="utf8") as stream:
+        #         leader_csv_file = list(csv.reader(stream, delimiter=',', quoting=csv.QUOTE_NONNUMERIC))
+        #         waypoints_leader_np = np.array(leader_csv_file)
+        # except FileNotFoundError:
+        #     self.get_logger().error(f"The file {waypoints_leader_file_path} does not exist.")
+
+        # if waypoints_leader_np is not None:
+        #     for i in range(1, waypoints_leader_np.shape[0]):
+        #         waypoint = carla.Waypoint(carla.Location(x=waypoints_leader_np[i, 0], y=waypoints_leader_np[i, 1], z=0.000000))
+        #         carla_world.debug.draw_string(waypoint.transform.location, 'o', draw_shadow=False, color=carla.Color(
+        #             r=255, g=255, b=255), life_time=0.2, persistent_lines=True)
 
         # print output
         self.loginfo(self._output)
@@ -240,7 +264,7 @@ class CarlaRosBridge(CompatibleNode):
 
         Returns:
             _type_: Server response
-        '''        
+        '''
         response = roscomp.get_service_response(SpawnObject)
         if not self.shutdown.is_set():
             try:
@@ -534,9 +558,7 @@ def main(args=None):
                     # for point in spawn_points:
                     #     carla_bridge.loginfo(f"Position: {point.location.x}, {point.location.y}, {point.location.z}")
                     #     carla_bridge.loginfo(f"Rotation: {point.rotation.roll}, {point.rotation.pitch}, {point.rotation.yaw}")
-                    
-                    
-                    
+
             carla_world.tick()
 
         carla_bridge.initialize_bridge(carla_client.get_world(), parameters)
