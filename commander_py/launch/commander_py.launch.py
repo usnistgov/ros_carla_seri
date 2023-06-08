@@ -126,6 +126,9 @@ def generate_launch_description():
                 name='control_method', default_value='MPC',
                 description='Control method: MPC, Stanley, PurePursuit'),
             
+            launch.actions.DeclareLaunchArgument(
+                name='is_ground_truth', default_value='False',
+                description='Whether or not we need to collect ground truth data'),
             
             # start commander_py
             # Make sure this Node is started before carla_waypoint_publisher.launch.py
@@ -137,6 +140,9 @@ def generate_launch_description():
                 parameters=[
                     {
                         'control_method': launch.substitutions.LaunchConfiguration('control_method')
+                    },
+                    {
+                        'is_ground_truth': launch.substitutions.LaunchConfiguration('is_ground_truth')
                     }
                 ]),
 
