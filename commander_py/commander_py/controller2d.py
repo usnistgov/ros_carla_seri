@@ -101,6 +101,19 @@ class Controller2D(object):
         return k_term + i_term
 
     def get_shifted_coordinate(self, x, y, yaw, length):
+        '''
+        Shift the origin of the vehicle based on the control type
+
+        Args:
+            x (float): Current x coordinate of the vehicle
+            y (float): Current y coordinate of the vehicle
+            yaw (float): Current yaw of the vehicle (radian)
+            length (float): Offset to apply to the current position of the vehicle
+
+        Returns:
+            tuple: Shifted x and y coordinates
+        '''
+        
         x_shifted = x + length*np.cos(yaw)
         y_shifted = y + length*np.sin(yaw)
         return x_shifted, y_shifted
